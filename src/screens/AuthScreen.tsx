@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,12 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Alert,
+  Animated,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
+import { DoctorIllustration } from '../components/DoctorIllustration';
 import {
   ShieldCheck,
   Server,
@@ -20,19 +24,18 @@ import {
   Phone,
   Lock,
   User as UserIcon,
-  CheckCircle2,
-  Circle,
   Eye,
   EyeOff,
   Pill,
   Users,
-  LogIn,
-  UserPlus,
   ChevronDown,
   ChevronUp,
   Sun,
   Moon,
   Activity,
+  KeyRound,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { UserRole, User } from '../types';
@@ -63,6 +66,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Smooth entrance animation for form card
+  const cardAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(cardAnim, {
+      toValue: 1,
+      friction: 8,
+      tension: 45,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [isLogin]);
 
   // Test server connectivity on mount and when serverUrl updates
   const testConnection = async (urlToTest: string) => {
@@ -109,6 +124,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const handleRoleSelect = (selectedRole: UserRole) => {
     hapticService.selection();
     setRole(selectedRole);
+  };
+
+  const handleQuickDemo = (demoUser: 'patient1' | 'caregiver1') => {
+    hapticService.selection();
+    setIsLogin(true);
+    setUsername(demoUser);
+    setPin('1234');
+    setRole(demoUser === 'caregiver1' ? 'Caregiver' : 'Patient');
+    setErrorMsg('');
+    setSuccessMsg(`Credentials loaded for ${demoUser}. Ready to sign in.`);
+  };
+
+  const handleForgotPin = () => {
+    hapticService.selection();
+    Alert.alert(
+      'PIN Recovery',
+      'For patient safety and adherence tracking, PIN resets are coordinated through your designated Caregiver or clinical administrator.\n\nQuick Tip: If evaluating MediAlert, use demo credentials (patient1 / 1234).'
+    );
   };
 
   const handleSubmit = async () => {
@@ -179,550 +212,584 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     }
   };
 
+  // Color schemes for background, card, and wave
+  const heroGradient = isDark
+    ? (['#030712', '#07101E', '#0D1B33'] as const)
+    : (['#BAE6FD', '#DDF0FD', '#F0F9FF'] as const);
+
+  const cardBg = isDark ? '#0D131F' : '#FFFFFF';
+  const inputBg = isDark ? '#141C2B' : '#F8FAFC';
+  const inputBorder = isDark ? 'rgba(0, 123, 167, 0.3)' : '#E2E8F0';
+
+  const cardTranslateY = cardAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [18, 0],
+  });
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.container, { backgroundColor: theme.bg }]}
+      style={[styles.container, { backgroundColor: isDark ? '#030712' : '#F0F9FF' }]}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Top Floating Controls: Theme Switcher & Telemetry Pill */}
-        <View style={styles.topControlBar}>
-          {/* Server status pill */}
-          <TouchableOpacity
-            style={[
-              styles.serverPill,
-              {
-                backgroundColor: theme.bgCard,
-                borderColor: isDark ? 'rgba(0, 123, 167, 0.28)' : theme.border,
-              },
-            ]}
-            onPress={() => setShowServerConfig(!showServerConfig)}
-          >
+        {/* Top Hero Section: Atmospheric Medical Gradient & Animations */}
+        <LinearGradient
+          colors={heroGradient}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.heroSection}
+        >
+          {/* Top Floating Control Bar */}
+          <View style={styles.topControlBar}>
+            {/* Server Connectivity Status Pill */}
+            <TouchableOpacity
+              style={[
+                styles.serverPill,
+                {
+                  backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                  borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : '#CBD5E1',
+                },
+              ]}
+              onPress={() => setShowServerConfig(!showServerConfig)}
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  connStatus === 'connected' && { backgroundColor: theme.emerald },
+                  connStatus === 'checking' && { backgroundColor: theme.amberWarning },
+                  connStatus === 'error' && { backgroundColor: theme.alert },
+                ]}
+              />
+              <Text style={[styles.serverPillText, { color: theme.textSecondary }]} numberOfLines={1}>
+                {connStatus === 'connected' ? 'API Live' : connMessage}
+              </Text>
+              {showServerConfig ? (
+                <ChevronUp size={12} color={theme.primaryLight} />
+              ) : (
+                <ChevronDown size={12} color={theme.primaryLight} />
+              )}
+            </TouchableOpacity>
+
+            {/* Dark / Light Theme Toggle Button */}
+            <TouchableOpacity
+              style={[
+                styles.themeToggleBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                  borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : '#CBD5E1',
+                },
+              ]}
+              onPress={toggleTheme}
+              accessibilityLabel="Toggle Theme"
+            >
+              {isDark ? (
+                <Sun size={15} color="#F59E0B" />
+              ) : (
+                <Moon size={15} color={theme.primary} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Expandable Server Config Drawer */}
+          {showServerConfig && (
             <View
               style={[
-                styles.statusDot,
-                connStatus === 'connected' && { backgroundColor: theme.emerald },
-                connStatus === 'checking' && { backgroundColor: theme.amberWarning },
-                connStatus === 'error' && { backgroundColor: theme.alert },
+                styles.serverConfigBox,
+                {
+                  backgroundColor: isDark ? '#0D131F' : '#FFFFFF',
+                  borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : '#E2E8F0',
+                },
               ]}
-            />
-            <Text style={[styles.serverPillText, { color: theme.textSecondary }]} numberOfLines={1}>
-              {connStatus === 'connected' ? 'API Online' : connMessage} ({serverUrl.replace(/^https?:\/\//, '')})
-            </Text>
-            {showServerConfig ? (
-              <ChevronUp size={13} color={theme.primaryLight} />
-            ) : (
-              <ChevronDown size={13} color={theme.primaryLight} />
-            )}
-          </TouchableOpacity>
+            >
+              <Text style={[styles.serverConfigLabel, { color: theme.textMuted }]}>
+                Backend Server Endpoint
+              </Text>
+              <View style={styles.serverInputRow}>
+                <TextInput
+                  style={[
+                    styles.serverInput,
+                    {
+                      backgroundColor: isDark ? '#0A0E15' : '#F8FAFC',
+                      borderColor: isDark ? 'rgba(0, 123, 167, 0.3)' : '#CBD5E1',
+                      color: theme.textPrimary,
+                    },
+                    Platform.OS === 'web' && ({ outlineStyle: 'none' } as any),
+                  ]}
+                  value={serverUrl}
+                  onChangeText={setServerUrl}
+                  placeholder="http://192.168.1.100:5000"
+                  placeholderTextColor={theme.textMuted}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={[styles.serverApplyBtn, { backgroundColor: theme.primary }]}
+                  onPress={() => handleApplyServerUrl(serverUrl)}
+                >
+                  <Text style={styles.serverApplyBtnText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* Theme Mode Toggle Button */}
-          <TouchableOpacity
-            style={[
-              styles.themeToggleBtn,
-              {
-                backgroundColor: theme.bgCard,
-                borderColor: isDark ? 'rgba(0, 123, 167, 0.28)' : theme.border,
-              },
-            ]}
-            onPress={toggleTheme}
-            accessibilityLabel="Toggle Theme"
-          >
-            {isDark ? (
-              <Sun size={15} color="#F59E0B" />
-            ) : (
-              <Moon size={15} color={theme.primary} />
-            )}
-          </TouchableOpacity>
-        </View>
+              <View style={styles.serverActionRow}>
+                <TouchableOpacity style={styles.autoDetectBtn} onPress={handleResetToAutoDetected}>
+                  <RefreshCw size={12} color={theme.primaryLight} />
+                  <Text style={[styles.autoDetectBtnText, { color: theme.primaryLight }]}>
+                    Auto-detect Host IP
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
-        {/* Expandable Server Config Drawer */}
-        {showServerConfig && (
-          <View
-            style={[
-              styles.serverConfigBox,
-              {
-                backgroundColor: theme.bgCard,
-                borderColor: isDark ? 'rgba(0, 123, 167, 0.3)' : theme.border,
-              },
-            ]}
-          >
-            <Text style={[styles.serverConfigLabel, { color: theme.textMuted }]}>
-              Backend Server Endpoint
-            </Text>
-            <View style={styles.serverInputRow}>
-              <TextInput
+          {/* Hero Brand & Doctor Illustration Centerpiece */}
+          <View style={styles.heroBrandCenter}>
+            {/* Glowing Brand Insignia Pill */}
+            <View
+              style={[
+                styles.logoBadgeCard,
+                {
+                  backgroundColor: isDark ? 'rgba(10, 15, 26, 0.92)' : 'rgba(255, 255, 255, 0.95)',
+                  borderColor: isDark ? 'rgba(56, 189, 248, 0.45)' : '#BAE6FD',
+                  shadowColor: isDark ? '#007BA7' : '#0284C7',
+                },
+              ]}
+            >
+              <Image
+                source={require('../../assets/MediAlertLogo.png')}
+                style={styles.heroLogoImage}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* Clinical Protocol Pill */}
+            <View
+              style={[
+                styles.heroProtocolPill,
+                {
+                  backgroundColor: isDark ? 'rgba(0, 123, 167, 0.22)' : 'rgba(255, 255, 255, 0.9)',
+                  borderColor: isDark ? 'rgba(56, 189, 248, 0.35)' : '#BAE6FD',
+                },
+              ]}
+            >
+              <View style={[styles.pulseDot, { backgroundColor: theme.emerald }]} />
+              <Text style={[styles.heroProtocolText, { color: theme.primaryLight }]}>
+                CLINICAL ADHERENCE SAFETY NET
+              </Text>
+            </View>
+
+            {/* Doctor Looking at Report Illustration */}
+            <View style={styles.doctorWrap}>
+              {/* Soft Ambient Radial Halo */}
+              <View
                 style={[
-                  styles.serverInput,
+                  styles.ambientAura,
                   {
-                    backgroundColor: isDark ? '#0A0E15' : '#F8FAFC',
-                    borderColor: isDark ? 'rgba(0, 123, 167, 0.3)' : '#CBD5E1',
-                    color: theme.textPrimary,
+                    backgroundColor: isDark ? 'rgba(0, 123, 167, 0.2)' : 'rgba(186, 230, 253, 0.65)',
                   },
                 ]}
-                value={serverUrl}
-                onChangeText={setServerUrl}
-                placeholder="http://192.168.1.100:5000"
-                placeholderTextColor={theme.textMuted}
-                autoCapitalize="none"
               />
-              <TouchableOpacity
-                style={[styles.serverApplyBtn, { backgroundColor: theme.primary }]}
-                onPress={() => handleApplyServerUrl(serverUrl)}
-              >
-                <Text style={styles.serverApplyBtnText}>Apply</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.serverActionRow}>
-              <TouchableOpacity style={styles.autoDetectBtn} onPress={handleResetToAutoDetected}>
-                <RefreshCw size={12} color={theme.primaryLight} />
-                <Text style={[styles.autoDetectBtnText, { color: theme.primaryLight }]}>
-                  Auto-detect Host IP
-                </Text>
-              </TouchableOpacity>
+              <DoctorIllustration width={220} height={195} style={styles.doctorIllustration} />
             </View>
           </View>
-        )}
 
-        {/* Clinical Branding Module from Stitch AI */}
-        <View style={styles.brandingModule}>
-          {/* Logo with Atmospheric Glow Ring */}
-          <View
-            style={[
-              styles.logoRingWrapper,
-              {
-                borderColor: theme.primaryLight,
-                backgroundColor: isDark ? '#090D14' : '#FFFFFF',
-                shadowColor: theme.primary,
-              },
-            ]}
-          >
-            <Image
-              source={require('../../assets/MediAlert_Logo.jpeg')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-          </View>
-
-          {/* Protocol Badge Pill */}
-          <View
-            style={[
-              styles.protocolPill,
-              {
-                backgroundColor: theme.primaryContainer,
-                borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : '#BAE6FD',
-              },
-            ]}
-          >
-            <View style={[styles.protocolDot, { backgroundColor: theme.alert }]} />
-            <Text style={[styles.protocolText, { color: theme.primaryLight }]}>
-              CLINICAL ADHERENCE PROTOCOL • SAFETY NET
-            </Text>
-          </View>
-
-          {/* App Title */}
-          <Text style={[styles.brandTitleText, { color: theme.textPrimary }]}>
-            MEDIALERT
-          </Text>
-
-          {/* Cardiogram Waveform Line (Stitch SVG Waveform) */}
-          <View style={styles.waveformContainer}>
-            <Svg width="100%" height={26} viewBox="0 0 320 28" fill="none">
+          {/* Majestic Asymmetric Wave Divider */}
+          <View style={styles.waveContainer}>
+            <Svg
+              width="100%"
+              height={70}
+              viewBox="0 0 400 70"
+              preserveAspectRatio="none"
+              style={styles.waveSvg}
+            >
+              {/* Solid fill blending seamlessly into form sheet */}
               <Path
-                d="M0 14 L80 14 L95 14 L102 3 L108 25 L116 8 L124 19 L130 14 L145 14 L170 14 L185 14 L192 1 L198 27 L206 6 L214 21 L220 14 L245 14 L320 14"
-                stroke={theme.primaryLight}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity={0.85}
+                d="M0,48 C140,78 260,10 400,22 L400,70 L0,70 Z"
+                fill={cardBg}
+              />
+              {/* Illuminated luminous glowing contour crest */}
+              <Path
+                d="M0,48 C140,78 260,10 400,22"
+                fill="none"
+                stroke={isDark ? 'rgba(56, 189, 248, 0.45)' : 'rgba(0, 123, 167, 0.22)'}
+                strokeWidth={2.5}
               />
             </Svg>
           </View>
-        </View>
+        </LinearGradient>
 
-        {/* Clinical Segmented Controller (Tab Switcher) */}
-        <View
+        {/* Main Curved Form Sheet Card */}
+        <Animated.View
           style={[
-            styles.segmentedTrack,
+            styles.sheetCard,
             {
-              backgroundColor: isDark ? '#090D14' : '#F1F5F9',
-              borderColor: isDark ? '#1C2533' : '#E2E8F0',
+              backgroundColor: cardBg,
+              borderColor: isDark ? 'rgba(0, 123, 167, 0.2)' : 'transparent',
+              shadowColor: isDark ? '#000000' : '#0F172A',
+              opacity: cardAnim,
+              transform: [{ translateY: cardTranslateY }],
             },
           ]}
         >
-          <TouchableOpacity
-            style={[
-              styles.segmentBtn,
-              isLogin && [
-                styles.segmentBtnActive,
-                {
-                  backgroundColor: theme.primary,
-                  shadowColor: theme.primary,
-                },
-              ],
-            ]}
-            onPress={() => handleTabSwitch(true)}
-          >
-            <LogIn size={15} color={isLogin ? '#FFFFFF' : theme.textMuted} />
-            <Text
-              style={[
-                styles.segmentBtnText,
-                { color: isLogin ? '#FFFFFF' : theme.textMuted },
-                isLogin && styles.segmentBtnTextActive,
-              ]}
-            >
-              Sign In
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.segmentBtn,
-              !isLogin && [
-                styles.segmentBtnActive,
-                {
-                  backgroundColor: theme.primary,
-                  shadowColor: theme.primary,
-                },
-              ],
-            ]}
-            onPress={() => handleTabSwitch(false)}
-          >
-            <UserPlus size={15} color={!isLogin ? '#FFFFFF' : theme.textMuted} />
-            <Text
-              style={[
-                styles.segmentBtnText,
-                { color: !isLogin ? '#FFFFFF' : theme.textMuted },
-                !isLogin && styles.segmentBtnTextActive,
-              ]}
-            >
-              Create Account
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Feedback Banners */}
-        {errorMsg ? (
+          {/* Top Persona / Role Segmented Controller (User vs Vendor pattern) */}
           <View
             style={[
-              styles.feedbackBanner,
+              styles.segmentedTrack,
               {
-                backgroundColor: theme.alertContainer,
-                borderColor: theme.alertBorder,
+                backgroundColor: isDark ? '#141C2B' : '#F1F5F9',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
               },
             ]}
           >
-            <Text style={[styles.feedbackText, { color: theme.alert }]}>{errorMsg}</Text>
-          </View>
-        ) : null}
-
-        {successMsg ? (
-          <View
-            style={[
-              styles.feedbackBanner,
-              {
-                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.14)' : '#DCFCE7',
-                borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : '#BBF7D0',
-              },
-            ]}
-          >
-            <CheckCircle2 size={16} color={theme.emerald} style={{ marginRight: 6 }} />
-            <Text style={[styles.feedbackText, { color: theme.emerald }]}>{successMsg}</Text>
-          </View>
-        ) : null}
-
-        {/* Glassmorphic Credential Card */}
-        <View
-          style={[
-            styles.credentialCard,
-            {
-              backgroundColor: theme.bgCard,
-              borderColor: isDark ? 'rgba(0, 123, 167, 0.32)' : theme.border,
-              shadowColor: theme.primary,
-            },
-          ]}
-        >
-          {/* Field 1: Username / Clinical Identifier */}
-          <View style={styles.fieldGroup}>
-            <View style={styles.fieldLabelRow}>
-              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                USERNAME
+            <TouchableOpacity
+              style={[
+                styles.segmentItem,
+                role === 'Patient' && {
+                  backgroundColor: theme.primary,
+                  shadowColor: theme.primary,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 6,
+                  elevation: 3,
+                },
+              ]}
+              onPress={() => handleRoleSelect('Patient')}
+            >
+              <Pill
+                size={16}
+                color={role === 'Patient' ? '#FFFFFF' : theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: role === 'Patient' ? '#FFFFFF' : theme.textSecondary },
+                  role === 'Patient' && styles.segmentTextActive,
+                ]}
+              >
+                Patient
               </Text>
-              <Text style={[styles.fieldTag, { color: theme.primaryLight }]}>
-                REQUIRED
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.segmentItem,
+                role === 'Caregiver' && {
+                  backgroundColor: theme.primary,
+                  shadowColor: theme.primary,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 6,
+                  elevation: 3,
+                },
+              ]}
+              onPress={() => handleRoleSelect('Caregiver')}
+            >
+              <Users
+                size={16}
+                color={role === 'Caregiver' ? '#FFFFFF' : theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: role === 'Caregiver' ? '#FFFFFF' : theme.textSecondary },
+                  role === 'Caregiver' && styles.segmentTextActive,
+                ]}
+              >
+                Caregiver
               </Text>
-            </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Form Header Typography */}
+          <View style={styles.formHeader}>
+            <Text style={[styles.formTitle, { color: theme.textPrimary }]}>
+              {isLogin ? 'Welcome Back!' : 'Get Started Free'}
+            </Text>
+            <Text style={[styles.formSubtitle, { color: theme.textSecondary }]}>
+              {isLogin
+                ? 'Sign in to monitor your schedule & botanical sanctuary'
+                : 'Free forever. Automatic SMS & clinical safety net.'}
+            </Text>
+          </View>
+
+          {/* Feedback Status Banners */}
+          {errorMsg ? (
             <View
               style={[
-                styles.inputWrapper,
+                styles.banner,
                 {
-                  backgroundColor: isDark ? '#0A0E15' : '#F8FAFC',
-                  borderColor: isDark ? 'rgba(0, 123, 167, 0.25)' : '#CBD5E1',
+                  backgroundColor: theme.alertContainer,
+                  borderColor: theme.alertBorder,
                 },
               ]}
             >
-              <UserIcon size={18} color={theme.primaryLight} style={styles.inputPrefixIcon} />
-              <TextInput
-                style={[styles.textInput, { color: theme.textPrimary }]}
-                value={username}
-                onChangeText={setUsername}
-                placeholder="e.g. alex.mercer or dr.miller"
-                placeholderTextColor={theme.textMuted}
-                autoCapitalize="none"
-              />
+              <Text style={[styles.bannerText, { color: theme.alertLight }]}>{errorMsg}</Text>
             </View>
-          </View>
+          ) : null}
 
-          {/* Field 2: Emergency Contact Telemetry (Phone Number - Shown on Sign Up) */}
-          {!isLogin && (
-            <View style={styles.fieldGroup}>
-              <View style={styles.fieldLabelRow}>
-                <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                  PHONE NUMBER (SMS SAFETY NET)
-                </Text>
-                <Text style={[styles.fieldTag, { color: theme.alertLight }]}>
-                  TIER 1
-                </Text>
-              </View>
-              <View style={styles.phoneInputRow}>
-                {/* Country Dial Badge */}
-                <View
-                  style={[
-                    styles.countryCodeBadge,
-                    {
-                      backgroundColor: isDark ? '#111827' : theme.primaryContainer,
-                      borderColor: isDark ? 'rgba(0, 123, 167, 0.3)' : '#BAE6FD',
-                    },
-                  ]}
-                >
-                  <Text style={[styles.countryCodeLabel, { color: theme.primaryLight }]}>
-                    KE
-                  </Text>
-                  <Text style={[styles.countryCodeVal, { color: theme.textPrimary }]}>
-                    +254
-                  </Text>
+          {successMsg ? (
+            <View
+              style={[
+                styles.banner,
+                {
+                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+                  borderColor: theme.emerald,
+                },
+              ]}
+            >
+              <CheckCircle2 size={16} color={theme.emerald} />
+              <Text style={[styles.bannerText, { color: theme.emerald }]}>{successMsg}</Text>
+            </View>
+          ) : null}
+
+          {/* Input Fields Container */}
+          <View style={styles.fieldsContainer}>
+            {/* Field 1: Username / Patient ID */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                Username or Patient ID
+              </Text>
+              <View
+                style={[
+                  styles.inputFieldContainer,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: inputBorder,
+                  },
+                ]}
+              >
+                <View style={styles.inputPrefixIcon}>
+                  <UserIcon size={18} color={theme.primaryLight} />
                 </View>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    { color: theme.textPrimary },
+                    Platform.OS === 'web' && ({ outlineStyle: 'none' } as any),
+                  ]}
+                  placeholder={role === 'Caregiver' ? 'e.g. caregiver1' : 'e.g. patient1'}
+                  placeholderTextColor={theme.textMuted}
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            </View>
 
-                {/* Line Input */}
+            {/* Field 2: Emergency Contact Phone (on Sign Up) */}
+            {!isLogin && (
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Emergency Phone (SMS Escalation)
+                </Text>
                 <View
                   style={[
-                    styles.inputWrapper,
-                    styles.phoneInputWrap,
+                    styles.inputFieldContainer,
                     {
-                      backgroundColor: isDark ? '#0A0E15' : '#F8FAFC',
-                      borderColor: isDark ? 'rgba(0, 123, 167, 0.25)' : '#CBD5E1',
+                      backgroundColor: inputBg,
+                      borderColor: inputBorder,
                     },
                   ]}
                 >
-                  <Phone size={17} color={theme.primaryLight} style={styles.inputPrefixIcon} />
+                  <View style={styles.inputPrefixIcon}>
+                    <Phone size={18} color={theme.primaryLight} />
+                  </View>
+                  <View
+                    style={[
+                      styles.countryCodeBadge,
+                      {
+                        backgroundColor: isDark ? '#1F2A3E' : '#E2E8F0',
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.countryCodeText, { color: theme.textPrimary }]}>
+                      {phoneCountryCode}
+                    </Text>
+                  </View>
                   <TextInput
-                    style={[styles.textInput, { color: theme.textPrimary }]}
-                    value={contactInfo}
-                    onChangeText={setContactInfo}
+                    style={[
+                      styles.textInput,
+                      { color: theme.textPrimary },
+                      Platform.OS === 'web' && ({ outlineStyle: 'none' } as any),
+                    ]}
                     placeholder="712 345 678"
                     placeholderTextColor={theme.textMuted}
                     keyboardType="phone-pad"
+                    value={contactInfo}
+                    onChangeText={setContactInfo}
                   />
                 </View>
+                <Text style={[styles.fieldHint, { color: theme.textMuted }]}>
+                  Used for real-time fallback SMS alerts if a critical dose is overdue.
+                </Text>
               </View>
-              <Text style={[styles.helperNote, { color: theme.textMuted }]}>
-                Receives automatic SMS fallback notifications if doses are missed.
-              </Text>
-            </View>
-          )}
+            )}
 
-          {/* Field 3: Cryptographic Access Key (PIN / Password) */}
-          <View style={styles.fieldGroup}>
-            <View style={styles.fieldLabelRow}>
-              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                SECURITY PIN / PASSWORD
+            {/* Field 3: Security PIN / Passcode */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                Security PIN
               </Text>
-              {isLogin && (
-                <TouchableOpacity onPress={() => alert('Please contact your clinic administrator to reset your PIN.')}>
-                  <Text style={[styles.forgotLink, { color: theme.primaryLight }]}>
-                    FORGOT PIN?
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <View
-              style={[
-                styles.inputWrapper,
-                {
-                  backgroundColor: isDark ? '#0A0E15' : '#F8FAFC',
-                  borderColor: isDark ? 'rgba(0, 123, 167, 0.25)' : '#CBD5E1',
-                },
-              ]}
-            >
-              <Lock size={18} color={theme.primaryLight} style={styles.inputPrefixIcon} />
-              <TextInput
-                style={[styles.textInput, { color: theme.textPrimary }]}
-                value={pin}
-                onChangeText={setPin}
-                placeholder="••••••••"
-                placeholderTextColor={theme.textMuted}
-                secureTextEntry={!showPin}
-                keyboardType="numeric"
-              />
-              <TouchableOpacity
-                style={styles.eyeBtn}
-                onPress={() => setShowPin(!showPin)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              <View
+                style={[
+                  styles.inputFieldContainer,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: inputBorder,
+                  },
+                ]}
               >
-                {showPin ? (
-                  <EyeOff size={18} color={theme.textMuted} />
-                ) : (
-                  <Eye size={18} color={theme.textMuted} />
+                <View style={styles.inputPrefixIcon}>
+                  <KeyRound size={18} color={theme.primaryLight} />
+                </View>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    { color: theme.textPrimary },
+                    Platform.OS === 'web' && ({ outlineStyle: 'none' } as any),
+                  ]}
+                  placeholder="Enter 4-6 digit PIN"
+                  placeholderTextColor={theme.textMuted}
+                  secureTextEntry={!showPin}
+                  keyboardType="numeric"
+                  maxLength={6}
+                  value={pin}
+                  onChangeText={setPin}
+                />
+                <TouchableOpacity
+                  style={styles.eyeToggleBtn}
+                  onPress={() => {
+                    hapticService.selection();
+                    setShowPin(!showPin);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Toggle PIN Visibility"
+                >
+                  {showPin ? (
+                    <EyeOff size={18} color={theme.textSecondary} />
+                  ) : (
+                    <Eye size={18} color={theme.textSecondary} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Password / PIN Help Row */}
+              <View style={styles.pinHelperRow}>
+                <View style={styles.pinSecurityBadge}>
+                  <View style={[styles.greenDot, { backgroundColor: theme.emerald }]} />
+                  <Text style={[styles.pinSecurityText, { color: theme.textMuted }]}>
+                    End-to-End Encrypted
+                  </Text>
+                </View>
+
+                {isLogin && (
+                  <TouchableOpacity onPress={handleForgotPin} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Text style={[styles.forgotPinText, { color: theme.primaryLight }]}>
+                      Forgot PIN?
+                    </Text>
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </View>
             </View>
           </View>
 
-          {/* Field 4: Clinical Station Role Selection (Shown on Sign Up) */}
-          {!isLogin && (
-            <View style={styles.fieldGroup}>
-              <View style={styles.fieldLabelRow}>
-                <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                  SELECT MANDATE (ROLE)
-                </Text>
-                <Text style={[styles.fieldTag, { color: theme.primaryLight }]}>
-                  CHOOSE ONE
-                </Text>
-              </View>
-
-              <View style={styles.roleCardsGrid}>
-                {/* Patient Persona Card */}
-                <TouchableOpacity
-                  style={[
-                    styles.roleCard,
-                    {
-                      backgroundColor: isDark ? '#0A0E15' : '#F8FAFC',
-                      borderColor: isDark ? '#1F2937' : '#E2E8F0',
-                    },
-                    role === 'Patient' && [
-                      styles.roleCardSelected,
-                      {
-                        backgroundColor: isDark ? 'rgba(0, 123, 167, 0.16)' : '#E0F2FE',
-                        borderColor: theme.primary,
-                      },
-                    ],
-                  ]}
-                  onPress={() => handleRoleSelect('Patient')}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.roleCardHeader}>
-                    <View
-                      style={[
-                        styles.roleIconWrap,
-                        {
-                          backgroundColor:
-                            role === 'Patient' ? theme.primaryContainer : isDark ? '#131B28' : '#F1F5F9',
-                        },
-                      ]}
-                    >
-                      <Pill size={18} color={role === 'Patient' ? theme.primaryLight : theme.textMuted} />
-                    </View>
-                    {role === 'Patient' ? (
-                      <CheckCircle2 size={18} color={theme.primaryLight} />
-                    ) : (
-                      <Circle size={18} color={theme.textMuted} />
-                    )}
-                  </View>
-                  <Text style={[styles.roleCardTitle, { color: theme.textPrimary }]}>
-                    Patient
-                  </Text>
-                  <Text style={[styles.roleCardSubtext, { color: theme.textMuted }]}>
-                    Regimen Intake & Milestones
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Caregiver Persona Card */}
-                <TouchableOpacity
-                  style={[
-                    styles.roleCard,
-                    {
-                      backgroundColor: isDark ? '#0A0E15' : '#F8FAFC',
-                      borderColor: isDark ? '#1F2937' : '#E2E8F0',
-                    },
-                    role === 'Caregiver' && [
-                      styles.roleCardSelected,
-                      {
-                        backgroundColor: isDark ? 'rgba(0, 123, 167, 0.16)' : '#E0F2FE',
-                        borderColor: theme.primary,
-                      },
-                    ],
-                  ]}
-                  onPress={() => handleRoleSelect('Caregiver')}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.roleCardHeader}>
-                    <View
-                      style={[
-                        styles.roleIconWrap,
-                        {
-                          backgroundColor:
-                            role === 'Caregiver' ? theme.primaryContainer : isDark ? '#131B28' : '#F1F5F9',
-                        },
-                      ]}
-                    >
-                      <Users size={18} color={role === 'Caregiver' ? theme.primaryLight : theme.textMuted} />
-                    </View>
-                    {role === 'Caregiver' ? (
-                      <CheckCircle2 size={18} color={theme.primaryLight} />
-                    ) : (
-                      <Circle size={18} color={theme.textMuted} />
-                    )}
-                  </View>
-                  <Text style={[styles.roleCardTitle, { color: theme.textPrimary }]}>
-                    Caregiver
-                  </Text>
-                  <Text style={[styles.roleCardSubtext, { color: theme.textMuted }]}>
-                    Monitor, Triage & Escalation
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* Primary Action Button (High-Impact Pill Button) */}
+          {/* High-Impact Gradient Action Button */}
           <TouchableOpacity
-            style={[
-              styles.primaryAuthBtn,
-              { backgroundColor: theme.primary },
-              isLoading && styles.btnDisabled,
-            ]}
+            style={styles.actionBtnWrap}
             onPress={handleSubmit}
             disabled={isLoading}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
-            {isLoading ? (
-              <View style={styles.btnLoadingRow}>
+            <LinearGradient
+              colors={
+                isDark
+                  ? (['#007BA7', '#0284C7'] as const)
+                  : (['#007BA7', '#0369A1'] as const)
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.gradientBtn}
+            >
+              {isLoading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.primaryAuthBtnText}>Verifying Telemetry...</Text>
-              </View>
-            ) : (
-              <View style={styles.btnLoadingRow}>
-                <Text style={styles.primaryAuthBtnText}>
-                  {isLogin ? 'Enter MediAlert Sanctuary' : 'Initialize Clinical Profile'}
-                </Text>
-                <ArrowRight size={18} color="#FFFFFF" />
-              </View>
-            )}
+              ) : (
+                <>
+                  <Text style={styles.actionBtnText}>
+                    {isLogin ? 'Sign In' : 'Create Account'}
+                  </Text>
+                  <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.4} />
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
-        </View>
 
-        {/* Security / System Footer */}
-        <View style={styles.securityFooter}>
-          <ShieldCheck size={14} color={theme.primaryLight} />
-          <Text style={[styles.securityFooterText, { color: theme.textMuted }]}>
-            Encrypted & Secure • MediAlert Clinical Patient Portal
-          </Text>
-        </View>
+          {/* Divider */}
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: isDark ? '#232D3F' : '#E2E8F0' }]} />
+            <Text style={[styles.dividerText, { color: theme.textMuted }]}>
+              Or Quick Demo Access
+            </Text>
+            <View style={[styles.dividerLine, { backgroundColor: isDark ? '#232D3F' : '#E2E8F0' }]} />
+          </View>
+
+          {/* Quick Demo Pre-fill Cards */}
+          <View style={styles.demoButtonsRow}>
+            <TouchableOpacity
+              style={[
+                styles.demoBtn,
+                {
+                  backgroundColor: isDark ? '#141C2B' : '#F1F5F9',
+                  borderColor: isDark ? 'rgba(0, 123, 167, 0.3)' : '#CBD5E1',
+                },
+              ]}
+              onPress={() => handleQuickDemo('patient1')}
+            >
+              <Pill size={15} color={theme.primaryLight} />
+              <Text style={[styles.demoBtnText, { color: theme.textPrimary }]}>
+                Patient Demo
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.demoBtn,
+                {
+                  backgroundColor: isDark ? '#141C2B' : '#F1F5F9',
+                  borderColor: isDark ? 'rgba(0, 123, 167, 0.3)' : '#CBD5E1',
+                },
+              ]}
+              onPress={() => handleQuickDemo('caregiver1')}
+            >
+              <Users size={15} color={theme.emerald} />
+              <Text style={[styles.demoBtnText, { color: theme.textPrimary }]}>
+                Caregiver Demo
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Bottom Switcher: Sign In vs Sign Up */}
+          <View style={styles.footerSwitchRow}>
+            <Text style={[styles.footerPromptText, { color: theme.textSecondary }]}>
+              {isLogin ? "Don't have an account?" : 'Already have a clinical profile?'}
+            </Text>
+            <TouchableOpacity onPress={() => handleTabSwitch(!isLogin)}>
+              <Text style={[styles.footerActionText, { color: theme.primaryLight }]}>
+                {isLogin ? 'Sign Up' : 'Sign In'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Security Footnote */}
+          <View style={styles.securityFootnote}>
+            <ShieldCheck size={13} color={theme.emerald} />
+            <Text style={[styles.securityFootnoteText, { color: theme.textMuted }]}>
+              MediAlert Clinical Adherence Protocol • Secure Local Data
+            </Text>
+          </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -733,28 +800,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    flexGrow: 1,
+  },
+  heroSection: {
+    paddingTop: Platform.OS === 'ios' ? 52 : 36,
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 44 : 20,
-    paddingBottom: 40,
+    paddingBottom: 0,
     alignItems: 'center',
+    position: 'relative',
+    minHeight: 350,
   },
   topControlBar: {
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 10,
+    marginBottom: 10,
+    zIndex: 10,
   },
   serverPill: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
+    gap: 7,
+    maxWidth: '75%',
   },
   statusDot: {
     width: 7,
@@ -762,12 +834,12 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
   },
   serverPillText: {
-    flex: 1,
     fontSize: 11,
     fontWeight: '600',
   },
   themeToggleBtn: {
-    padding: 8,
+    width: 36,
+    height: 36,
     borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',
@@ -777,33 +849,36 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 14,
     borderWidth: 1,
-    padding: 14,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 14,
+    zIndex: 20,
   },
   serverConfigLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+    fontWeight: '700',
     letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom: 6,
+    textTransform: 'uppercase',
   },
   serverInputRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 8,
   },
   serverInput: {
     flex: 1,
+    height: 38,
     borderRadius: 8,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    fontSize: 13,
+    paddingHorizontal: 10,
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   serverApplyBtn: {
     paddingHorizontal: 14,
-    justifyContent: 'center',
+    height: 38,
     borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   serverApplyBtnText: {
     color: '#FFFFFF',
@@ -812,279 +887,315 @@ const styles = StyleSheet.create({
   },
   serverActionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 2,
+    marginTop: 8,
   },
   autoDetectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingVertical: 2,
   },
   autoDetectBtnText: {
     fontSize: 11,
     fontWeight: '600',
   },
-  brandingModule: {
+  heroBrandCenter: {
     alignItems: 'center',
-    marginBottom: 18,
     width: '100%',
+    paddingVertical: 10,
+    position: 'relative',
   },
-  logoRingWrapper: {
-    padding: 3,
+  ambientAura: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+  },
+  doctorWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginTop: 4,
+    marginBottom: -14,
+    zIndex: 5,
+  },
+  doctorIllustration: {
+    width: 220,
+    height: 195,
+  },
+  logoBadgeCard: {
     borderRadius: 22,
-    borderWidth: 2,
-    shadowOffset: { width: 0, height: 4 },
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
-    shadowRadius: 14,
+    shadowRadius: 18,
     elevation: 8,
-    marginBottom: 10,
+    marginTop: 6,
+    marginBottom: 12,
   },
-  logoImage: {
-    width: 86,
-    height: 68,
-    borderRadius: 18,
+  heroLogoImage: {
+    width: 130,
+    height: 42,
   },
-  protocolPill: {
+  heroProtocolPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 3.5,
+    gap: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderRadius: 20,
     borderWidth: 1,
-    marginBottom: 6,
+    marginBottom: 10,
   },
-  protocolDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+  pulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  protocolText: {
-    fontSize: 9,
+  heroProtocolText: {
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
   },
-  brandTitleText: {
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginBottom: 4,
-  },
-  waveformContainer: {
+  cardiogramWrap: {
     width: '100%',
-    maxWidth: 280,
-    height: 26,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 4,
+    height: 24,
+    marginBottom: 6,
+  },
+  waveContainer: {
+    width: '100%',
+    height: 70,
+    marginTop: 'auto',
+  },
+  waveSvg: {
+    width: '100%',
+    height: 70,
+  },
+  sheetCard: {
+    flex: 1,
+    marginTop: -2,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    paddingHorizontal: 22,
+    paddingTop: 16,
+    paddingBottom: 40,
   },
   segmentedTrack: {
-    width: '100%',
-    maxWidth: 390,
     flexDirection: 'row',
-    borderRadius: 30,
-    padding: 4,
+    height: 46,
+    borderRadius: 23,
     borderWidth: 1,
-    marginBottom: 16,
+    padding: 3,
+    marginBottom: 20,
   },
-  segmentBtn: {
+  segmentItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: 26,
+    borderRadius: 20,
+    gap: 7,
   },
-  segmentBtnActive: {
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  segmentBtnText: {
+  segmentText: {
     fontSize: 13,
     fontWeight: '600',
   },
-  segmentBtnTextActive: {
+  segmentTextActive: {
     fontWeight: '800',
   },
-  feedbackBanner: {
-    width: '100%',
-    maxWidth: 390,
+  formHeader: {
+    marginBottom: 20,
+  },
+  formTitle: {
+    fontSize: 27,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 6,
+  },
+  formSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    padding: 12,
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 8,
   },
-  feedbackText: {
+  bannerText: {
     fontSize: 12,
     fontWeight: '600',
     flex: 1,
+    lineHeight: 16,
   },
-  credentialCard: {
-    width: '100%',
-    maxWidth: 390,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    padding: 18,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 7,
+  fieldsContainer: {
+    gap: 16,
+    marginBottom: 22,
   },
-  fieldGroup: {
-    marginBottom: 14,
+  inputGroup: {
+    gap: 6,
   },
-  fieldLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-    paddingHorizontal: 2,
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.7,
-  },
-  fieldTag: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  forgotLink: {
-    fontSize: 10,
+  inputLabel: {
+    fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.4,
+    letterSpacing: 0.2,
   },
-  inputWrapper: {
+  inputFieldContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
   },
   inputPrefixIcon: {
     marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   textInput: {
     flex: 1,
     height: '100%',
     fontSize: 14,
-    fontWeight: '500',
-  },
-  eyeBtn: {
-    padding: 4,
-  },
-  phoneInputRow: {
-    flexDirection: 'row',
-    gap: 8,
+    fontWeight: '600',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: 0,
   },
   countryCodeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 48,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginRight: 8,
   },
-  countryCodeLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  countryCodeVal: {
+  countryCodeText: {
     fontSize: 12,
     fontWeight: '700',
   },
-  phoneInputWrap: {
-    flex: 1,
+  eyeToggleBtn: {
+    padding: 6,
+    marginLeft: 6,
   },
-  helperNote: {
+  fieldHint: {
     fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+    paddingHorizontal: 4,
+  },
+  pinHelperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 4,
     paddingHorizontal: 2,
-    lineHeight: 15,
   },
-  roleCardsGrid: {
+  pinSecurityBadge: {
     flexDirection: 'row',
-    gap: 10,
-  },
-  roleCard: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 12,
-  },
-  roleCardSelected: {
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  roleCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 5,
   },
-  roleIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  greenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  roleCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  roleCardSubtext: {
-    fontSize: 10,
-    lineHeight: 14,
+  pinSecurityText: {
+    fontSize: 11,
     fontWeight: '500',
   },
-  primaryAuthBtn: {
-    flexDirection: 'row',
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
+  forgotPinText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  actionBtnWrap: {
+    width: '100%',
+    height: 52,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#007BA7',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowRadius: 10,
+    elevation: 4,
+    marginBottom: 20,
   },
-  btnDisabled: {
-    opacity: 0.65,
-  },
-  btnLoadingRow: {
+  gradientBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
-  primaryAuthBtnText: {
+  actionBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
-  securityFooter: {
+  dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 22,
+    gap: 12,
+    marginBottom: 16,
   },
-  securityFooterText: {
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  demoButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  demoBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+  },
+  demoBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  footerSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 20,
+  },
+  footerPromptText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  footerActionText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  securityFootnote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  securityFootnoteText: {
     fontSize: 11,
     fontWeight: '500',
   },

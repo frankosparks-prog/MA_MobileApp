@@ -9,7 +9,7 @@ import {
   Image,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
-import { Plus, LogOut, Activity, Sun, Moon } from 'lucide-react-native';
+import { Plus, LogOut, Activity, Sun, Moon, ShieldCheck, Repeat, User as UserIcon } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { User, Medication, AdherenceLog, GamificationProfile } from '../types';
 import { StreakHUD } from '../components/StreakHUD';
@@ -151,87 +151,77 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
             },
           ]}
         >
-          <View style={styles.heroTopRow}>
-            <View style={styles.heroBrandRow}>
+          {/* Top Patient ID & Status Row */}
+          <View style={styles.patientBadgeRow}>
+            <View style={styles.patientIdGroup}>
+              <Text style={[styles.patientIdText, { color: theme.primaryLight }]}>
+                PATIENT ID #{user._id ? user._id.slice(-4).toUpperCase() : '9402'}
+              </Text>
               <View
                 style={[
-                  styles.logoRingWrapper,
+                  styles.activePatientChip,
                   {
-                    borderColor: theme.primaryLight,
-                    backgroundColor: isDark ? '#0A0A0A' : '#FFFFFF',
+                    backgroundColor: isDark ? 'rgba(0, 123, 167, 0.15)' : '#E0F2FE',
                   },
                 ]}
               >
-                <Image
-                  source={require('../../assets/MediAlert_Logo.jpeg')}
-                  style={styles.heroLogo}
-                />
-              </View>
-              <View style={styles.heroTextCol}>
-                <View style={styles.heroBadgeRow}>
-                  <Text style={[styles.heroAppName, { color: theme.primaryLight }]}>
-                    MEDIALERT
-                  </Text>
-                  <View
-                    style={[
-                      styles.liveSyncChip,
-                      {
-                        backgroundColor: theme.alertContainer,
-                        borderColor: theme.alertBorder,
-                      },
-                    ]}
-                  >
-                    <View style={[styles.liveSyncDot, { backgroundColor: theme.alert }]} />
-                    <Text style={[styles.liveSyncText, { color: theme.alertLight }]}>
-                      SAFETY NET ACTIVE
-                    </Text>
-                  </View>
-                </View>
-                <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
-                  Adherence Sanctuary
-                </Text>
-                <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
-                  {user.username} • {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                <View style={[styles.activeDot, { backgroundColor: theme.primaryLight }]} />
+                <Text style={[styles.activePatientText, { color: theme.primaryLight }]}>
+                  ACTIVE PATIENT
                 </Text>
               </View>
             </View>
 
-            {/* Top Right Controls: Theme Toggle + Logout */}
-            <View style={styles.heroRightActions}>
-              <TouchableOpacity
-                style={[
-                  styles.actionIconBtn,
-                  {
-                    backgroundColor: isDark ? '#141822' : '#F1F5F9',
-                    borderColor: isDark ? '#242D3A' : '#E2E8F0',
-                  },
-                ]}
-                onPress={toggleTheme}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Toggle Theme"
-              >
-                {isDark ? (
-                  <Sun size={16} color="#F59E0B" />
-                ) : (
-                  <Moon size={16} color={theme.primary} />
-                )}
-              </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.switchButton}
+              onPress={onLogout}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Switch Account or Logout"
+            >
+              <Repeat size={13} color={theme.textSecondary} />
+              <Text style={[styles.switchText, { color: theme.textSecondary }]}>Switch</Text>
+            </TouchableOpacity>
+          </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.actionIconBtn,
-                  {
-                    backgroundColor: isDark ? '#141822' : '#F1F5F9',
-                    borderColor: isDark ? '#242D3A' : '#E2E8F0',
-                  },
-                ]}
-                onPress={onLogout}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Log Out"
-              >
-                <LogOut size={16} color={theme.textSecondary} />
-              </TouchableOpacity>
+          {/* Patient Profile Row */}
+          <View style={styles.patientProfileRow}>
+            <View
+              style={[
+                styles.patientAvatar,
+                {
+                  backgroundColor: isDark ? '#142033' : '#E0F2FE',
+                  borderColor: isDark ? 'rgba(56, 189, 248, 0.4)' : '#BAE6FD',
+                },
+              ]}
+            >
+              <UserIcon size={24} color={theme.primaryLight} />
             </View>
+            <View style={styles.patientNameCol}>
+              <View style={styles.patientNameRow}>
+                <Text style={[styles.patientNameText, { color: theme.textPrimary }]}>
+                  {user.username}
+                </Text>
+                <ShieldCheck size={18} color={theme.primaryLight} />
+              </View>
+              <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
+                Adherence Sanctuary • {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
+
+            {/* Quick Add Prescription Button */}
+            <TouchableOpacity
+              style={[
+                styles.quickAddBtn,
+                {
+                  backgroundColor: theme.primary,
+                },
+              ]}
+              onPress={onOpenAddMedication}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Add Prescription"
+            >
+              <Plus size={18} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
 
           {/* Hero Quick Stat Ticker */}
@@ -422,6 +412,89 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     flex: 1,
+  },
+  patientBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  patientIdGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  patientIdText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  activePatientChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  activePatientText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  switchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
+  switchText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  patientProfileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  patientAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  patientNameCol: {
+    flex: 1,
+  },
+  patientNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  patientNameText: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  quickAddBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#007BA7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   logoRingWrapper: {
     width: 48,

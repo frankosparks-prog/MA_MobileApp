@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Activity, Pill, Users, User as UserNavIcon } from 'lucide-react-native';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { User, Medication, AdherenceLog, Quote } from './src/types';
 import { AuthScreen } from './src/screens/AuthScreen';
@@ -13,13 +12,14 @@ import { ProfileScreen } from './src/screens/ProfileScreen';
 import { ReminderOverlayModal } from './src/modals/ReminderOverlayModal';
 import { CaregiverEscalationModal } from './src/modals/CaregiverEscalationModal';
 import { AddMedicationModal } from './src/modals/AddMedicationModal';
+import { NotificationsModal, NotificationItem } from './src/modals/NotificationsModal';
+import { TopNavBar } from './src/components/TopNavBar';
+import { CurvedBottomBar, Tab } from './src/components/CurvedBottomBar';
 import { Toast, ToastMessage } from './src/components/Toast';
 import quoteService from './src/services/quoteService';
 import client from './src/api/client';
 import { adherenceApi, medicationApi, authApi } from './src/api';
 import hapticService from './src/services/hapticService';
-
-type Tab = 'today' | 'medications' | 'caregiver' | 'profile';
 
 function MainApp() {
   const { theme, isDark } = useTheme();
@@ -43,6 +43,10 @@ function MainApp() {
   const [isCaregiverModalOpen, setIsCaregiverModalOpen] = useState(false);
   const [activeQuote, setActiveQuote] = useState<Quote | null>(null);
 
+  // Top Nav & Notification Drawer state
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
   useEffect(() => {
     // Check initial auth token & sync profile
     const checkToken = async () => {
@@ -60,6 +64,77 @@ function MainApp() {
     };
     checkToken();
   }, []);
+
+  // Poll for active dose alerts & caregiver notifications
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const loadNotifications = async () => {
+      try {
+        const [logsRes, alertsRes] = await Promise.all([
+          adherenceApi.getLogs(currentUser._id),
+          adherenceApi.getCaregiverAlerts(),
+        ]);
+
+        const items: NotificationItem[] = [];
+
+        // Active / escalated dose logs
+        if (logsRes.data?.logs) {
+          const activeLogs = logsRes.data.logs.filter(
+            (l) => l.status === 'Escalated' || l.status === 'Missed'
+          );
+
+          activeLogs.slice(0, 6).forEach((log) => {
+            const med = typeof log.medId === 'object' ? (log.medId as Medication) : null;
+            const medName = med?.drugName || 'Scheduled Prescription';
+            const isEscalated = log.status === 'Escalated';
+            items.push({
+              id: log._id,
+              type: isEscalated ? 'urgent' : 'reminder',
+              title: `${medName} • ${log.scheduledTime || 'Due'}`,
+              message: isEscalated
+                ? `Safety Net Level ${log.escalationLevel || 1}: Window overdue. Please confirm intake.`
+                : `Dose intake scheduled for today. Confirm to nourish your plant sanctuary.`,
+              timestamp: log.scheduledTime || 'Today',
+              actionLabel: 'Take Dose',
+              log,
+              medication: med || undefined,
+            });
+          });
+        }
+
+        // Caregiver alerts
+        if (alertsRes.data?.alerts) {
+          alertsRes.data.alerts.slice(0, 3).forEach((alt: any) => {
+            items.push({
+              id: alt._id || Math.random().toString(),
+              type: 'urgent',
+              title: 'Caregiver Safety Net Dispatched',
+              message: alt.message || 'Escalation triggered for patient adherence.',
+              timestamp: 'Active',
+            });
+          });
+        }
+
+        // Daily Milestone
+        items.push({
+          id: 'streak-milestone-20',
+          type: 'streak',
+          title: 'Adherence Streak Active',
+          message: '20 consecutive days logged. Your botanical sanctuary is flourishing!',
+          timestamp: 'Daily',
+        });
+
+        setNotifications(items);
+      } catch (e: any) {
+        console.log('Error refreshing notifications:', e.message);
+      }
+    };
+
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 15000);
+    return () => clearInterval(interval);
+  }, [currentUser, dataVersion]);
 
   const handleLogout = async () => {
     await client.removeToken();
@@ -148,6 +223,15 @@ function MainApp() {
       {/* Global Toast Banner */}
       <Toast toast={toast} onDismiss={() => setToast(null)} />
 
+      {/* Top Navigation Bar with Logo, Notification Bell & Profile Avatar */}
+      <TopNavBar
+        user={currentUser}
+        unreadCount={notifications.length}
+        onPressLogo={() => handleTabPress('today')}
+        onPressNotifications={() => setIsNotificationModalOpen(true)}
+        onPressProfile={() => handleTabPress('profile')}
+      />
+
       {/* Main Screen Content */}
       <View style={styles.screenContent}>
         {activeTab === 'today' && (
@@ -196,105 +280,8 @@ function MainApp() {
         )}
       </View>
 
-      {/* Bottom Tab Navigation Dock */}
-      <View
-        style={[
-          styles.tabBar,
-          {
-            backgroundColor: theme.tabBarBg,
-            borderTopColor: theme.tabBarBorder,
-            shadowColor: theme.primary,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'today' && { backgroundColor: theme.tabBarActivePill },
-          ]}
-          onPress={() => handleTabPress('today')}
-        >
-          <Activity
-            size={22}
-            color={activeTab === 'today' ? theme.primaryLight : theme.textSubtle}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              { color: activeTab === 'today' ? theme.primaryLight : theme.textSubtle },
-              activeTab === 'today' && styles.tabLabelActive,
-            ]}
-          >
-            Today
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'medications' && { backgroundColor: theme.tabBarActivePill },
-          ]}
-          onPress={() => handleTabPress('medications')}
-        >
-          <Pill
-            size={22}
-            color={activeTab === 'medications' ? theme.primaryLight : theme.textSubtle}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              { color: activeTab === 'medications' ? theme.primaryLight : theme.textSubtle },
-              activeTab === 'medications' && styles.tabLabelActive,
-            ]}
-          >
-            Medicines
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'caregiver' && { backgroundColor: theme.tabBarActivePill },
-          ]}
-          onPress={() => handleTabPress('caregiver')}
-        >
-          <Users
-            size={22}
-            color={activeTab === 'caregiver' ? theme.primaryLight : theme.textSubtle}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              { color: activeTab === 'caregiver' ? theme.primaryLight : theme.textSubtle },
-              activeTab === 'caregiver' && styles.tabLabelActive,
-            ]}
-          >
-            Circle of Care
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabItem,
-            activeTab === 'profile' && { backgroundColor: theme.tabBarActivePill },
-          ]}
-          onPress={() => handleTabPress('profile')}
-        >
-          <UserNavIcon
-            size={22}
-            color={activeTab === 'profile' ? theme.primaryLight : theme.textSubtle}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              { color: activeTab === 'profile' ? theme.primaryLight : theme.textSubtle },
-              activeTab === 'profile' && styles.tabLabelActive,
-            ]}
-          >
-            Profile
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* Animated Curved Notch Bottom Navigation Bar */}
+      <CurvedBottomBar activeTab={activeTab} onTabPress={handleTabPress} />
 
       {/* Global Overlays & Modals */}
       <ReminderOverlayModal
@@ -324,6 +311,21 @@ function MainApp() {
         onSave={handleSaveMedication}
         medicationToEdit={medicationToEdit}
       />
+
+      {/* Interactive Clinical Notifications Drawer */}
+      <NotificationsModal
+        visible={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        notifications={notifications}
+        onTakeDose={(log, med) => {
+          setIsNotificationModalOpen(false);
+          handleOpenReminder(log, med, (log.escalationLevel || 1) as 1 | 2 | 3);
+        }}
+        onClearAll={() => {
+          setNotifications([]);
+          showToast('info', 'All notifications cleared.');
+        }}
+      />
     </View>
   );
 }
@@ -344,31 +346,5 @@ const styles = StyleSheet.create({
   },
   screenContent: {
     flex: 1,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    borderTopWidth: 1.5,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
-    paddingTop: 10,
-    paddingHorizontal: 16,
-    justifyContent: 'space-around',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  tabItem: {
-    alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  tabLabelActive: {
-    fontWeight: '800',
   },
 });
