@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Expo & Metro build files
+.expo/
+.expo-shared/
+web-build/
+dist/
+
+# Native builds
+android/
+ios/
+
+# Environment files
+.env
+.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System & IDE
+.DS_Store
+*.pem
+.vscode/
+.idea/
+Thumbs.db

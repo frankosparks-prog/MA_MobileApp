@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "MediAlert",
+    "slug": "medialert",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.medialert.app"
+    },
+    "android": {
+      "package": "com.medialert.app"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "1",
+    "text": "The greatest wealth is health, and every dose is an investment in tomorrow.",
+    "category": "inspirational",
+    "author": "Virgil"
+  },
+  {
+    "id": "2",
+    "text": "It is part of the cure to wish to be cured.",
+    "category": "inspirational",
+    "author": "Seneca"
+  },
+  {
+    "id": "3",
+    "text": "Consistency in your treatment plan is the foundation of lasting recovery.",
+    "category": "relatable",
+    "author": "Clinical Principle"
+  },
+  {
+    "id": "4",
+    "text": "Let your daily routine be the guardian of your vitality.",
+    "category": "inspirational",
+    "author": "Hippocrates"
+  },
+  {
+    "id": "5",
+    "text": "Small daily steps lead to enduring milestones.",
+    "category": "inspirational",
+    "author": "Marcus Aurelius"
+  },
+  {
+    "id": "6",
+    "text": "Taking your medication on schedule is self-respect in action.",
+    "category": "relatable",
+    "author": "Wellness Proverb"
+  },
+  {
+    "id": "7",
+    "text": "Care for your body today so it carries you forward tomorrow.",
+    "category": "inspirational",
+    "author": "Ralph Waldo Emerson"
+  },
+  {
+    "id": "8",
+    "text": "One day at a time, one dose on schedule — keep your momentum strong.",
+    "category": "relatable",
+    "author": "Adherence Insight"
+  }
+]
