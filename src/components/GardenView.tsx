@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import LottieView from 'lottie-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -13,6 +12,7 @@ import Animated, {
 import { Sparkles, Droplets, Calendar, Trees } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { PlantStage, PlantStatus, PlantType } from '../types';
+import { PlantIllustration } from './PlantIllustration';
 
 interface GardenViewProps {
   plantStage?: PlantStage;
@@ -38,7 +38,6 @@ export const GardenView: React.FC<GardenViewProps> = ({
   const { theme, isDark } = useTheme();
   const isWilted = plantStatus === 'Wilted';
   const effectiveGrowth = Math.max(Math.min(growthPercentage, 100), 10);
-  const lottieRef = useRef<LottieView>(null);
 
   // Swaying breathing animation
   const sway = useSharedValue(0);
@@ -61,11 +60,6 @@ export const GardenView: React.FC<GardenViewProps> = ({
       withSpring(1.08, { damping: 4, stiffness: 120 }),
       withTiming(1, { duration: 400 })
     );
-
-    // Sync lottie frame to growth percentage
-    if (lottieRef.current) {
-      lottieRef.current.pause();
-    }
   }, [growthPercentage]);
 
   const animatedPlantStyle = useAnimatedStyle(() => {
@@ -93,16 +87,9 @@ export const GardenView: React.FC<GardenViewProps> = ({
         ]}
       />
 
-      {/* Lottie Vector Plant Canvas */}
+      {/* Botanical Plant Canvas */}
       <Animated.View style={[styles.plantCanvas, animatedPlantStyle]}>
-        <LottieView
-          ref={lottieRef}
-          source={require('../../assets/animations/plant_growth.json')}
-          progress={effectiveGrowth / 100}
-          autoPlay={false}
-          loop={false}
-          style={styles.lottiePlant}
-        />
+        <PlantIllustration size={170} />
 
         {/* Floating Thirst Indicator if overdue */}
         {isWilted && (

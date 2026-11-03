@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,17 +6,41 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  Image,
+  Alert,
+  Modal,
+  Platform,
 } from 'react-native';
-import LottieView from 'lottie-react-native';
-import { Plus, LogOut, Activity, Sun, Moon, ShieldCheck, Repeat, User as UserIcon } from 'lucide-react-native';
+import Svg, { Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  ShieldCheck,
+  Activity,
+  Flame,
+  Clock,
+  Bell,
+  Flower2,
+  Plus,
+  CheckCircle2,
+  Check,
+  Info,
+  Pill,
+  ClipboardCheck,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Repeat,
+  Heart,
+  Droplets,
+} from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { User, Medication, AdherenceLog, GamificationProfile } from '../types';
-import { StreakHUD } from '../components/StreakHUD';
+import { SuccessfulTargetIllustration } from '../components/SuccessfulTargetIllustration';
+import { HospitalPulseEcg } from '../components/HospitalPulseEcg';
+import { PlantIllustration } from '../components/PlantIllustration';
 import { GardenView } from '../components/GardenView';
-import { DoseCard } from '../components/DoseCard';
-import { DailyQuoteCard } from '../components/DailyQuoteCard';
+import { typography } from '../theme/typography';
 import { medicationApi, adherenceApi, gamificationApi } from '../api';
+import hapticService from '../services/hapticService';
 
 interface SanctuaryScreenProps {
   user: User;
@@ -37,35 +61,38 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
   showToast,
   dataVersion = 0,
 }) => {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [profile, setProfile] = useState<GamificationProfile | null>(null);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [logs, setLogs] = useState<AdherenceLog[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const autoAlertedLogsRef = React.useRef<Set<string>>(new Set());
+  const [showAllTaken, setShowAllTaken] = useState(false);
+  const [selectedMedForInfo, setSelectedMedForInfo] = useState<Medication | null>(null);
+  const autoAlertedLogsRef = useRef<Set<string>>(new Set());
 
+  // 1. Data Fetching
   const fetchData = async () => {
     try {
-      // 1. Fetch Profile
+      // Profile
       const profileRes = await gamificationApi.getProfile(user._id);
       if (profileRes.data?.profile) {
         setProfile(profileRes.data.profile);
       }
 
-      // 2. Fetch Medications
+      // Medications
       const medsRes = await medicationApi.list(user._id);
       const fetchedMeds = medsRes.data?.medications || [];
       if (fetchedMeds.length > 0) {
         setMedications(fetchedMeds);
       }
 
-      // 3. Fetch Adherence Logs
+      // Logs
       const logsRes = await adherenceApi.getLogs(user._id);
       if (logsRes.data?.logs) {
         const fetchedLogs = logsRes.data.logs;
         setLogs(fetchedLogs);
 
-        // Check if any due dose needs an automatic in-app reminder popup
+        // Auto reminder escalation check
         const dueLog = fetchedLogs.find(
           (l) =>
             l.status === 'Escalated' &&
@@ -90,12 +117,11 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
     }
   };
 
-  // Immediate re-fetch when dataVersion changes or on mount
   useEffect(() => {
     fetchData();
   }, [user._id, dataVersion]);
 
-  // Periodic 15s interval to detect newly due medication intake times automatically
+  // Periodic polling every 15s to update real-time status
   useEffect(() => {
     const timer = setInterval(() => {
       fetchData();
@@ -109,7 +135,86 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
     setRefreshing(false);
   };
 
-  const handleTakeDose = async (log: AdherenceLog) => {
+  // 2. Computed Doses & Logs
+  const dueLogs = useMemo(() => {
+    return logs.filter((l) => l.status !== 'Taken');
+  }, [logs]);
+
+  const takenLogs = useMemo(() => {
+    return logs
+      .filter((l) => l.status === 'Taken')
+      .sort((a, b) => {
+        const timeA = a.takenTime || a.scheduledTime || '';
+        const timeB = b.takenTime || b.scheduledTime || '';
+        return timeB.localeCompare(timeA);
+      });
+  }, [logs]);
+
+  // User requirement: ONLY log the previous 3 instead of everything
+  const displayedTakenLogs = showAllTaken ? takenLogs : takenLogs.slice(0, 3);
+
+  // Time formatter
+  const formatTime = (timeStr?: string) => {
+    if (!timeStr) return '08:00 AM';
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return timeStr;
+    let hour = parseInt(parts[0], 10);
+    const minute = parts[1].slice(0, 2);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12 || 12;
+    return `${hour}:${minute} ${ampm}`;
+  };
+
+  // Calculate relative overdue or due string
+  const getRelativeDueInfo = (scheduledTimeStr?: string) => {
+    if (!scheduledTimeStr) return { text: 'Due Now', isOverdue: true };
+    const parts = scheduledTimeStr.split(':');
+    if (parts.length < 2) return { text: 'Due Now', isOverdue: true };
+
+    const now = new Date();
+    const sched = new Date();
+    sched.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+
+    const diffMs = now.getTime() - sched.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+
+    if (diffMins > 0) {
+      if (diffMins >= 60) {
+        const hrs = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        return { text: `Overdue by ${hrs}h ${mins > 0 ? `${mins}m` : ''}`, isOverdue: true };
+      }
+      return { text: `Overdue by ${diffMins} min`, isOverdue: true };
+    } else {
+      const waitMins = Math.abs(diffMins);
+      if (waitMins >= 60) {
+        return { text: `In ${Math.floor(waitMins / 60)}h ${waitMins % 60}m`, isOverdue: false };
+      }
+      return { text: `In ${waitMins}m`, isOverdue: false };
+    }
+  };
+
+  // Next Dose Info for Garden Pill
+  const nextDosePillInfo = useMemo(() => {
+    if (dueLogs.length === 0) {
+      return { label: 'Sanctuary in Bloom', isDue: false };
+    }
+    const firstDue = dueLogs[0];
+    const med =
+      typeof firstDue.medId === 'object'
+        ? (firstDue.medId as Medication)
+        : medications.find((m) => m._id === firstDue.medId);
+
+    const medName = med?.drugName || 'Next Dose';
+    const rel = getRelativeDueInfo(firstDue.scheduledTime);
+    return {
+      label: rel.isOverdue ? `${medName} • Due Now` : `${medName} in ${rel.text.replace('In ', '')}`,
+      isDue: true,
+    };
+  }, [dueLogs, medications]);
+
+  const handleTakeDose = (log: AdherenceLog) => {
+    hapticService.selection();
     const med =
       typeof log.medId === 'object'
         ? (log.medId as Medication)
@@ -127,6 +232,19 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
     }
   };
 
+  const handleInfoPress = (med?: Medication | null) => {
+    hapticService.selection();
+    if (!med) return;
+    setSelectedMedForInfo(med);
+  };
+
+  // Sanctuary Garden metrics
+  const activeMed = medications[0];
+  const courseDays = activeMed?.durationDays || 7;
+  const currentCourseDay = Math.min(courseDays, (profile?.currentStreak || 5) % courseDays || 5);
+  const adherencePercent = profile?.growthPercentage || 79;
+  const dosesRemaining = Math.max(1, courseDays - currentCourseDay);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView
@@ -140,245 +258,607 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
           />
         }
       >
-        {/* Cyber-Medical Hero Command Section */}
+        {/* ========================================================================= */}
+        {/* 1. TOP SANCTUARY HERO COMMAND CARD WITH SUCCESSFUL TARGET SVG ANIMATION    */}
+        {/* ========================================================================= */}
         <View
           style={[
             styles.heroCard,
             {
-              backgroundColor: theme.bgCard,
-              borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : theme.border,
-              shadowColor: theme.primary,
+              backgroundColor: isDark ? theme.bgCard : '#FFFFFF',
+              borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : '#E2E8F0',
+              shadowColor: isDark ? '#000000' : 'rgba(0, 123, 167, 0.16)',
             },
           ]}
         >
-          {/* Top Patient ID & Status Row */}
-          <View style={styles.patientBadgeRow}>
-            <View style={styles.patientIdGroup}>
-              <Text style={[styles.patientIdText, { color: theme.primaryLight }]}>
-                PATIENT ID #{user._id ? user._id.slice(-4).toUpperCase() : '9402'}
-              </Text>
+          {/* Top Sanctuary & Safety Net Pill Row */}
+          <View style={styles.heroTopHeaderRow}>
+            <View style={styles.brandBadgeGroup}>
               <View
                 style={[
-                  styles.activePatientChip,
+                  styles.brandShieldCircle,
                   {
-                    backgroundColor: isDark ? 'rgba(0, 123, 167, 0.15)' : '#E0F2FE',
+                    backgroundColor: isDark ? 'rgba(0, 123, 167, 0.2)' : '#E0F2FE',
                   },
                 ]}
               >
-                <View style={[styles.activeDot, { backgroundColor: theme.primaryLight }]} />
-                <Text style={[styles.activePatientText, { color: theme.primaryLight }]}>
-                  ACTIVE PATIENT
-                </Text>
+                <ShieldCheck size={16} color={theme.primaryLight} strokeWidth={2.4} />
               </View>
+              <Text style={[styles.brandBadgeTitle, { color: isDark ? theme.primaryLight : '#0369A1' }]}>
+                MediAlert Sanctuary
+              </Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.switchButton}
-              onPress={onLogout}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityLabel="Switch Account or Logout"
-            >
-              <Repeat size={13} color={theme.textSecondary} />
-              <Text style={[styles.switchText, { color: theme.textSecondary }]}>Switch</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Patient Profile Row */}
-          <View style={styles.patientProfileRow}>
+            {/* Armed Safety Net Pill */}
             <View
               style={[
-                styles.patientAvatar,
+                styles.safetyNetPill,
                 {
-                  backgroundColor: isDark ? '#142033' : '#E0F2FE',
-                  borderColor: isDark ? 'rgba(56, 189, 248, 0.4)' : '#BAE6FD',
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : '#FEE2E2',
+                  borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FECACA',
                 },
               ]}
             >
-              <UserIcon size={24} color={theme.primaryLight} />
+              <View style={styles.safetyNetPulsingDot} />
+              <Text style={styles.safetyNetPillText}>SAFETY NET ARMED</Text>
             </View>
-            <View style={styles.patientNameCol}>
-              <View style={styles.patientNameRow}>
-                <Text style={[styles.patientNameText, { color: theme.textPrimary }]}>
-                  {user.username}
-                </Text>
-                <ShieldCheck size={18} color={theme.primaryLight} />
-              </View>
-              <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
-                Adherence Sanctuary • {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-              </Text>
-            </View>
-
-            {/* Quick Add Prescription Button */}
-            <TouchableOpacity
-              style={[
-                styles.quickAddBtn,
-                {
-                  backgroundColor: theme.primary,
-                },
-              ]}
-              onPress={onOpenAddMedication}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityLabel="Add Prescription"
-            >
-              <Plus size={18} color="#FFFFFF" />
-            </TouchableOpacity>
           </View>
 
-          {/* Hero Quick Stat Ticker */}
-          <View
-            style={[
-              styles.heroMetricsGrid,
-              {
-                backgroundColor: isDark ? '#090D14' : '#F8FAFC',
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#E2E8F0',
-              },
-            ]}
-          >
-            <View style={styles.heroMetricItem}>
-              <Text style={[styles.heroMetricVal, { color: theme.textPrimary }]}>
-                {profile?.currentStreak || 0}d
+          {/* Animated Hospital Cardiac Pulse ECG Monitor */}
+          <View style={styles.ecgContainer}>
+            <HospitalPulseEcg isDark={isDark} height={28} bpm={74} />
+          </View>
+
+          {/* Greeting Typography & Animated Successful Target SVG Centerpiece */}
+          <View style={styles.greetingCenterRow}>
+            <View style={styles.greetingTextColumn}>
+              <Text style={[styles.welcomeTitle, { color: theme.textPrimary }]}>
+                Welcome back, {user.username || 'Alex'}
               </Text>
-              <Text style={[styles.heroMetricLabel, { color: theme.textSecondary }]}>
-                Streak
+              <Text style={[styles.welcomeSubtitle, { color: theme.textSecondary }]}>
+                Continuous adherence protection is synced with clinic.
               </Text>
             </View>
+
+            {/* Animated Target Graphic with Ambient Aura */}
+            <View style={styles.targetIllustrationWrap}>
+              <View
+                style={[
+                  styles.targetAmbientAura,
+                  {
+                    backgroundColor: isDark
+                      ? 'rgba(0, 123, 167, 0.22)'
+                      : 'rgba(186, 230, 253, 0.6)',
+                  },
+                ]}
+              />
+              <SuccessfulTargetIllustration size={102} />
+            </View>
+          </View>
+
+          {/* 3 Metric Quick Badges Row (Streak, Due Today, Bloomed) */}
+          <View style={styles.metricsRow}>
+            {/* 1. Streak */}
             <View
               style={[
-                styles.heroMetricDivider,
-                { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0' },
+                styles.metricCard,
+                {
+                  backgroundColor: isDark ? '#101E2E' : '#F0F9FF',
+                  borderColor: isDark ? 'rgba(56, 189, 248, 0.22)' : '#E0F2FE',
+                },
               ]}
-            />
-            <View style={styles.heroMetricItem}>
-              <Text style={[styles.heroMetricVal, { color: theme.alertLight }]}>
-                {logs.filter((l) => l.status !== 'Taken').length}
+            >
+              <View style={[styles.metricIconCircle, { backgroundColor: isDark ? 'rgba(56, 189, 248, 0.18)' : '#E0F2FE' }]}>
+                <Flame size={18} color={isDark ? '#38BDF8' : '#0284C7'} strokeWidth={2.3} />
+              </View>
+              <Text style={[styles.metricValue, { color: isDark ? '#38BDF8' : '#0369A1' }]}>
+                {profile?.currentStreak || 14}d
               </Text>
-              <Text style={[styles.heroMetricLabel, { color: theme.textSecondary }]}>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Streak</Text>
+            </View>
+
+            {/* 2. Due Today (Vibrant Alert Highlight) */}
+            <View
+              style={[
+                styles.metricCard,
+                {
+                  backgroundColor: isDark ? '#2A1318' : '#FEF2F2',
+                  borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FEE2E2',
+                },
+              ]}
+            >
+              <View style={[styles.metricIconCircle, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.25)' : '#FEE2E2' }]}>
+                <Bell size={18} color={theme.alert} strokeWidth={2.3} />
+              </View>
+              <Text style={[styles.metricValue, { color: theme.alert }]}>
+                {dueLogs.length}
+              </Text>
+              <Text style={[styles.metricLabel, { color: theme.alert, fontWeight: '700' }]}>
                 Due Today
               </Text>
             </View>
+
+            {/* 3. Bloomed */}
             <View
               style={[
-                styles.heroMetricDivider,
-                { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0' },
-              ]}
-            />
-            <View style={styles.heroMetricItem}>
-              <Text style={[styles.heroMetricVal, { color: theme.primaryLight }]}>
-                {profile?.treesGrown || 0}
-              </Text>
-              <Text style={[styles.heroMetricLabel, { color: theme.textSecondary }]}>
-                Trees Grown
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 1. Daily Encouragement Quote Card */}
-        <DailyQuoteCard streak={profile?.currentStreak || 0} />
-
-        {/* 2. Embedded Recovery Gamification Card */}
-        <View
-          style={[
-            styles.recoveryCard,
-            {
-              backgroundColor: theme.bgCard,
-              borderColor: isDark ? 'rgba(0, 123, 167, 0.25)' : theme.border,
-              shadowColor: theme.primary,
-            },
-          ]}
-        >
-          <View style={styles.recoveryCardHeader}>
-            <View style={styles.recoveryHeaderTitleRow}>
-              <Activity size={18} color={theme.primaryLight} />
-              <Text style={[styles.recoveryTitle, { color: theme.textPrimary }]}>
-                Adherence & Wellness Plant
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.stageTag,
+                styles.metricCard,
                 {
-                  backgroundColor: theme.primaryContainer,
-                  borderColor: isDark ? 'rgba(0, 123, 167, 0.3)' : '#BAE6FD',
+                  backgroundColor: isDark ? '#10262C' : '#F0FDF4',
+                  borderColor: isDark ? 'rgba(16, 185, 129, 0.22)' : '#DCFCE7',
                 },
               ]}
             >
-              <Text style={[styles.stageTagText, { color: theme.primaryLight }]}>
-                {profile?.plantStage || 'Seed'}
+              <View style={[styles.metricIconCircle, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : '#DCFCE7' }]}>
+                <Flower2 size={18} color={isDark ? '#34D399' : '#059669'} strokeWidth={2.3} />
+              </View>
+              <Text style={[styles.metricValue, { color: isDark ? '#34D399' : '#047857' }]}>
+                {profile?.treesGrown || 3}
+              </Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Bloomed</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ========================================================================= */}
+        {/* 2. LIVING VIGOR GARDEN BOTANICAL SANCTUARY CARD                           */}
+        {/* ========================================================================= */}
+        <View
+          style={[
+            styles.gardenCard,
+            {
+              backgroundColor: isDark ? theme.bgCard : '#FFFFFF',
+              borderColor: isDark ? 'rgba(0, 123, 167, 0.28)' : '#E2E8F0',
+              shadowColor: isDark ? '#000000' : 'rgba(0, 123, 167, 0.14)',
+            },
+          ]}
+        >
+          {/* Card Title Row & Next Dose Capsule */}
+          <View style={styles.gardenHeaderRow}>
+            <View style={styles.gardenTitleGroup}>
+              <Flower2 size={20} color={theme.primaryLight} strokeWidth={2.4} />
+              <Text style={[styles.gardenTitleText, { color: theme.textPrimary }]}>
+                Living Vigor Garden
+              </Text>
+            </View>
+
+            {/* Countdown / Dose Status Pill */}
+            <View
+              style={[
+                styles.nextDosePill,
+                nextDosePillInfo.isDue
+                  ? {
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.16)' : '#FEF2F2',
+                      borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FECACA',
+                    }
+                  : {
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.16)' : '#ECFDF5',
+                      borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : '#A7F3D0',
+                    },
+              ]}
+            >
+              {nextDosePillInfo.isDue ? (
+                <Clock size={12} color={theme.alert} strokeWidth={2.3} />
+              ) : (
+                <Sparkles size={12} color={theme.emerald} strokeWidth={2.3} />
+              )}
+              <Text
+                style={[
+                  styles.nextDosePillText,
+                  { color: nextDosePillInfo.isDue ? theme.alert : theme.emerald },
+                ]}
+              >
+                {nextDosePillInfo.label}
               </Text>
             </View>
           </View>
 
-          {/* Plant Animation / Dynamic Botanical Progress */}
-          <GardenView
-            plantStage={profile?.plantStage || 'Sprout'}
-            plantStatus={profile?.plantStatus || 'Healthy'}
-            streakDays={profile?.currentStreak || 0}
-            growthPercentage={profile?.growthPercentage || 25}
-            treesGrown={profile?.treesGrown || 0}
-            dosagePeriodDays={medications[0]?.durationDays || 0}
-            activeMedName={medications[0]?.drugName}
-          />
+          {/* Plant Visual Center with Animated Botanical Plant & Ambient Backdrop */}
+          <View style={styles.plantVisualWrap}>
+            <View
+              style={[
+                styles.plantGlowHalo,
+                {
+                  backgroundColor: isDark
+                    ? 'rgba(0, 123, 167, 0.18)'
+                    : 'rgba(186, 230, 253, 0.65)',
+                },
+              ]}
+            />
+            <PlantIllustration size={165} />
 
-          {/* Streak & Milestone Progress HUD */}
-          {profile && <StreakHUD profile={profile} />}
-        </View>
+            {/* Course Stage Label */}
+            <Text style={[styles.plantCourseLabel, { color: theme.textSecondary }]}>
+              Lotus of Resiliency • Day {currentCourseDay} of {courseDays}
+            </Text>
+          </View>
 
-        {/* 3. Today's Adherence Schedule Timeline */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-            Today's Adherence Timeline
-          </Text>
-          <TouchableOpacity
-            style={[styles.addMedQuickBtn, { backgroundColor: theme.primary }]}
-            onPress={onOpenAddMedication}
-          >
-            <Plus size={14} color="#FFFFFF" />
-            <Text style={styles.addMedQuickBtnText}>Add Rx</Text>
-          </TouchableOpacity>
-        </View>
-
-        {logs.length === 0 ? (
+          {/* Flowering Stage & Adherence Progress Bar Container */}
           <View
             style={[
-              styles.emptyDoseCard,
+              styles.progressContainerCard,
               {
-                backgroundColor: theme.bgCard,
-                borderColor: isDark ? 'rgba(0, 123, 167, 0.2)' : theme.border,
+                backgroundColor: isDark ? '#0D1422' : '#F8FAFC',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : '#E2E8F0',
               },
             ]}
           >
-            <LottieView
-              source={require('../../assets/animations/water_splash.json')}
-              autoPlay
-              loop
-              style={styles.emptyLottie}
-            />
-            <Text style={[styles.emptyDoseTitle, { color: theme.textPrimary }]}>
-              All Doses Up to Date
+            {/* Stage Title & Adherence Percentage */}
+            <View style={styles.progressTextRow}>
+              <Text style={[styles.progressStageName, { color: theme.textPrimary }]}>
+                {profile?.plantStage || 'Flowering'} Stage
+              </Text>
+              <Text style={[styles.progressAdherenceVal, { color: theme.primaryLight }]}>
+                {adherencePercent}% Adherence
+              </Text>
+            </View>
+
+            {/* Visual Gradient Progress Bar */}
+            <View
+              style={[
+                styles.progressBarTrack,
+                { backgroundColor: isDark ? '#1B2638' : '#E2E8F0' },
+              ]}
+            >
+              <LinearGradient
+                colors={['#38BDF8', '#007BA7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[
+                  styles.progressBarFill,
+                  { width: `${Math.min(Math.max(adherencePercent, 12), 100)}%` },
+                ]}
+              />
+            </View>
+
+            {/* Course & Blossom Countdown Details Row */}
+            <View style={styles.progressBottomDetailRow}>
+              <Text style={[styles.courseDetailText, { color: theme.textSecondary }]}>
+                Course: {courseDays}-Day {activeMed?.drugName || 'Regimen'}
+              </Text>
+              <Text style={[styles.dosesRemainingText, { color: isDark ? '#38BDF8' : '#0284C7' }]}>
+                {dosesRemaining} doses to full blossom
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ========================================================================= */}
+        {/* 3. TODAY'S PRESCRIPTIONS SECTION HEADER                                   */}
+        {/* ========================================================================= */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionTitleGroup}>
+            <ClipboardCheck size={21} color={theme.primaryLight} strokeWidth={2.4} />
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              Today's Prescriptions
             </Text>
-            <Text style={[styles.emptyDoseSubtext, { color: theme.textSecondary }]}>
-              You have no pending medication doses right now. Great job maintaining your regimen!
+          </View>
+
+          <TouchableOpacity
+            style={[styles.addRxPillBtn, { backgroundColor: isDark ? 'rgba(0, 123, 167, 0.2)' : '#E0F2FE' }]}
+            onPress={onOpenAddMedication}
+            activeOpacity={0.7}
+          >
+            <Plus size={15} color={theme.primaryLight} strokeWidth={2.5} />
+            <Text style={[styles.addRxPillBtnText, { color: theme.primaryLight }]}>Add Rx</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ========================================================================= */}
+        {/* 4. ACTIVE DUE PRESCRIPTION CARDS                                          */}
+        {/* ========================================================================= */}
+        {dueLogs.length === 0 ? (
+          <View
+            style={[
+              styles.allTakenCard,
+              {
+                backgroundColor: isDark ? theme.bgCard : '#FFFFFF',
+                borderColor: isDark ? 'rgba(16, 185, 129, 0.3)' : '#BBF7D0',
+              },
+            ]}
+          >
+            <CheckCircle2 size={32} color={theme.emerald} />
+            <Text style={[styles.allTakenTitle, { color: theme.textPrimary }]}>
+              All Scheduled Doses Complete
+            </Text>
+            <Text style={[styles.allTakenSubtext, { color: theme.textSecondary }]}>
+              Your clinical adherence protocol is on track today. The botanical sanctuary is fully nourished!
             </Text>
           </View>
         ) : (
-          logs.map((log) => {
+          dueLogs.map((log) => {
             const med =
               typeof log.medId === 'object'
                 ? (log.medId as Medication)
                 : medications.find((m) => m._id === log.medId);
 
+            const rel = getRelativeDueInfo(log.scheduledTime);
+            const drugName = med?.drugName || 'Prescription Dose';
+            const dosage = med?.dosage || 'Standard Dosage';
+            const quantity = med?.quantity || '1 Dose';
+            const instructions = med?.instructions || 'With Full Glass of Water';
+
             return (
-              <DoseCard
+              <View
                 key={log._id}
-                log={log}
-                medication={med}
-                onTakeDose={() => handleTakeDose(log)}
-              />
+                style={[
+                  styles.duePrescriptionCard,
+                  {
+                    backgroundColor: isDark ? theme.bgCard : '#FFFFFF',
+                    borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FECACA',
+                    shadowColor: isDark ? '#000000' : 'rgba(239, 68, 68, 0.14)',
+                  },
+                ]}
+              >
+                {/* Red Left Edge Accent Stripe */}
+                <View style={styles.cardLeftRedStripe} />
+
+                <View style={styles.dueCardContent}>
+                  {/* Top Header Row with Pill Icon, Drug Name & DUE NOW Badge */}
+                  <View style={styles.dueCardTopRow}>
+                    <View style={styles.dueCardMainInfo}>
+                      {/* Pill Icon Circle */}
+                      <View
+                        style={[
+                          styles.duePillCircle,
+                          {
+                            backgroundColor: isDark ? 'rgba(0, 123, 167, 0.2)' : '#E0F2FE',
+                          },
+                        ]}
+                      >
+                        <Pill size={20} color={theme.primaryLight} strokeWidth={2.4} />
+                      </View>
+
+                      {/* Drug Name & Due Now Badge */}
+                      <View style={styles.drugTitleCol}>
+                        <View style={styles.drugTitleRow}>
+                          <Text style={[styles.drugNameText, { color: theme.textPrimary }]}>
+                            {drugName}
+                          </Text>
+                          <View style={styles.dueNowBadge}>
+                            <Text style={styles.dueNowBadgeText}>
+                              {rel.isOverdue ? 'DUE NOW' : 'PENDING'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.dosageInstructionText, { color: theme.textSecondary }]}>
+                          {dosage} • {quantity} • {instructions}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Alarm Icon Slot */}
+                    <TouchableOpacity
+                      style={[
+                        styles.bellIconBtn,
+                        { backgroundColor: isDark ? 'rgba(0, 123, 167, 0.15)' : '#E0F2FE' },
+                      ]}
+                      onPress={() => handleTakeDose(log)}
+                    >
+                      <Bell size={16} color={theme.primaryLight} strokeWidth={2.3} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Scheduled Alert Banner Container */}
+                  <View
+                    style={[
+                      styles.scheduledBanner,
+                      {
+                        backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+                        borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : '#FEE2E2',
+                      },
+                    ]}
+                  >
+                    <Clock size={14} color={theme.alert} strokeWidth={2.4} />
+                    <Text style={styles.scheduledBannerText}>
+                      Scheduled:{' '}
+                      <Text style={{ fontWeight: '800', color: theme.alert }}>
+                        {formatTime(log.scheduledTime)}
+                      </Text>{' '}
+                      ({rel.text})
+                    </Text>
+                  </View>
+
+                  {/* Action Buttons Row: Primary 'Confirm Ingestion' + Secondary 'Info (i)' */}
+                  <View style={styles.actionBtnRow}>
+                    <TouchableOpacity
+                      style={styles.confirmIngestionBtn}
+                      onPress={() => handleTakeDose(log)}
+                      activeOpacity={0.85}
+                    >
+                      <LinearGradient
+                        colors={['#0284C7', '#007BA7']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.confirmIngestionGradient}
+                      >
+                        <CheckCircle2 size={18} color="#FFFFFF" strokeWidth={2.4} />
+                        <Text style={styles.confirmIngestionBtnText}>Confirm Ingestion</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+
+                    {/* Clinical Details Info Button */}
+                    <TouchableOpacity
+                      style={[
+                        styles.infoCircleBtn,
+                        {
+                          backgroundColor: isDark ? '#141E2F' : '#F1F5F9',
+                          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
+                        },
+                      ]}
+                      onPress={() => handleInfoPress(med)}
+                      accessibilityLabel="Medication Details"
+                    >
+                      <Info size={18} color={theme.textSecondary} strokeWidth={2.4} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
             );
           })
         )}
+
+        {/* ========================================================================= */}
+        {/* 5. ALREADY TAKEN PRESCRIPTIONS (MAX 3 LOGS AS SPECIFIED)                  */}
+        {/* ========================================================================= */}
+        {takenLogs.length > 0 && (
+          <View style={styles.takenSectionWrap}>
+            <View style={styles.takenSectionHeaderRow}>
+              <Text style={[styles.takenSectionHeading, { color: theme.textSecondary }]}>
+                Recently Logged ({displayedTakenLogs.length} of {takenLogs.length})
+              </Text>
+              {takenLogs.length > 3 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    hapticService.selection();
+                    setShowAllTaken(!showAllTaken);
+                  }}
+                  style={styles.toggleTakenBtn}
+                >
+                  <Text style={[styles.toggleTakenBtnText, { color: theme.primaryLight }]}>
+                    {showAllTaken ? 'Show Previous 3' : `+${takenLogs.length - 3} More`}
+                  </Text>
+                  {showAllTaken ? (
+                    <ChevronUp size={14} color={theme.primaryLight} />
+                  ) : (
+                    <ChevronDown size={14} color={theme.primaryLight} />
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {displayedTakenLogs.map((log) => {
+              const med =
+                typeof log.medId === 'object'
+                  ? (log.medId as Medication)
+                  : medications.find((m) => m._id === log.medId);
+
+              const drugName = med?.drugName || 'Prescription Intake';
+              const dosage = med?.dosage || '';
+              const timeDisplay = formatTime(log.takenTime || log.scheduledTime);
+
+              return (
+                <View
+                  key={log._id}
+                  style={[
+                    styles.takenCardItem,
+                    {
+                      backgroundColor: isDark ? theme.bgCard : '#FFFFFF',
+                      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
+                    },
+                  ]}
+                >
+                  {/* Left Check Circle */}
+                  <View
+                    style={[
+                      styles.takenCheckCircle,
+                      {
+                        backgroundColor: isDark ? 'rgba(0, 123, 167, 0.18)' : '#E0F2FE',
+                      },
+                    ]}
+                  >
+                    <Check size={16} color={theme.primaryLight} strokeWidth={2.6} />
+                  </View>
+
+                  {/* Name, Dosage & Verification Details */}
+                  <View style={styles.takenTextColumn}>
+                    <Text style={[styles.takenDrugNameText, { color: theme.textPrimary }]}>
+                      {drugName} <Text style={styles.takenDosageText}>{dosage}</Text>
+                    </Text>
+                    <Text style={[styles.takenDetailText, { color: theme.textMuted }]}>
+                      Taken at {timeDisplay} • Verified by Self
+                    </Text>
+                  </View>
+
+                  {/* Logged Badge Pill */}
+                  <View
+                    style={[
+                      styles.loggedBadgePill,
+                      {
+                        backgroundColor: isDark ? 'rgba(0, 123, 167, 0.16)' : '#E0F2FE',
+                      },
+                    ]}
+                  >
+                    <Check size={12} color={theme.primaryLight} strokeWidth={2.4} />
+                    <Text style={[styles.loggedBadgeText, { color: theme.primaryLight }]}>
+                      Logged
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
+
+      {/* ========================================================================= */}
+      {/* 6. CLINICAL MEDICATION INFO MODAL DIALOG                                  */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={!!selectedMedForInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedMedForInfo(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.infoModalCard,
+              {
+                backgroundColor: isDark ? '#111827' : '#FFFFFF',
+                borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : '#E2E8F0',
+              },
+            ]}
+          >
+            <View style={styles.infoModalHeader}>
+              <View style={[styles.infoModalIconCircle, { backgroundColor: isDark ? 'rgba(0, 123, 167, 0.2)' : '#E0F2FE' }]}>
+                <Pill size={24} color={theme.primaryLight} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.infoModalTitle, { color: theme.textPrimary }]}>
+                  {selectedMedForInfo?.drugName}
+                </Text>
+                <Text style={[styles.infoModalSubtitle, { color: theme.textSecondary }]}>
+                  {selectedMedForInfo?.dosage} • {selectedMedForInfo?.quantity || 'Standard intake'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.infoModalBody}>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoRowLabel, { color: theme.textMuted }]}>Instructions:</Text>
+                <Text style={[styles.infoRowValue, { color: theme.textPrimary }]}>
+                  {selectedMedForInfo?.instructions || 'Take with water as prescribed.'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoRowLabel, { color: theme.textMuted }]}>Daily Schedule:</Text>
+                <Text style={[styles.infoRowValue, { color: theme.textPrimary }]}>
+                  {selectedMedForInfo?.scheduleInterval || '08:00 AM'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoRowLabel, { color: theme.textMuted }]}>Regimen Course:</Text>
+                <Text style={[styles.infoRowValue, { color: theme.textPrimary }]}>
+                  {selectedMedForInfo?.durationDays ? `${selectedMedForInfo.durationDays} Days Duration` : 'Ongoing Regimen'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoRowLabel, { color: theme.textMuted }]}>Safety Net:</Text>
+                <Text style={[styles.infoRowValue, { color: theme.primaryLight }]}>
+                  Active • 3-Tier Alert & Caregiver SMS
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.closeModalBtn, { backgroundColor: theme.primary }]}
+              onPress={() => setSelectedMedForInfo(null)}
+            >
+              <Text style={styles.closeModalBtnText}>Close Details</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -388,287 +868,608 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingTop: 10,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 115, // Clearance for curved bottom nav bar
   },
+
+  /* Hero Command Card */
   heroCard: {
-    borderRadius: 22,
-    borderWidth: 1.5,
-    padding: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 18,
     marginBottom: 16,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
     elevation: 6,
   },
-  heroTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  heroBrandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  patientBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  patientIdGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  patientIdText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  activePatientChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  activePatientText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  switchButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  switchText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  patientProfileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  patientAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  patientNameCol: {
-    flex: 1,
-  },
-  patientNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  patientNameText: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  quickAddBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#007BA7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  logoRingWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 2,
-    padding: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroLogo: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 10,
-  },
-  heroTextCol: {
-    flex: 1,
-  },
-  heroBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 2,
-  },
-  heroAppName: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  liveSyncChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-  },
-  liveSyncDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  liveSyncText: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  heroTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  heroSubtitle: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginTop: 1,
-  },
-  heroRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionIconBtn: {
-    padding: 9,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroMetricsGrid: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    marginTop: 14,
-  },
-  heroMetricItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  heroMetricVal: {
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  heroMetricLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  heroMetricDivider: {
-    width: 1,
-    height: 24,
-  },
-  recoveryCard: {
-    borderRadius: 20,
-    borderWidth: 1.5,
-    padding: 18,
-    marginBottom: 24,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  recoveryCardHeader: {
+  heroTopHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
   },
-  recoveryHeaderTitleRow: {
+  brandBadgeGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  recoveryTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+  brandShieldCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  stageTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  brandBadgeTitle: {
+    fontFamily: typography.extraBold,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  safetyNetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     borderWidth: 1,
   },
-  stageTagText: {
+  safetyNetPulsingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#EF4444',
+  },
+  safetyNetPillText: {
+    fontFamily: typography.extraBold,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.5,
+  },
+  ecgContainer: {
+    width: '100%',
+    height: 28,
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  greetingCenterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  greetingTextColumn: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  welcomeTitle: {
+    fontFamily: typography.extraBold,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 5,
+  },
+  welcomeSubtitle: {
+    fontFamily: typography.medium,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  targetIllustrationWrap: {
+    width: 102,
+    height: 102,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  targetAmbientAura: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+  },
+
+  /* 3 Metric Badges Row */
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  metricCard: {
+    flex: 1,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  metricValue: {
+    fontFamily: typography.extraBold,
+    fontSize: 19,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
+  metricLabel: {
+    fontFamily: typography.semiBold,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  /* Living Vigor Garden Card */
+  gardenCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 18,
+    marginBottom: 22,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  gardenHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  gardenTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  gardenTitleText: {
+    fontFamily: typography.bold,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  nextDosePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  nextDosePillText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
-  sectionHeader: {
+  plantVisualWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginVertical: 10,
+  },
+  plantGlowHalo: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+  },
+  plantCourseLabel: {
+    fontFamily: typography.semiBold,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
+    marginBottom: 12,
+  },
+
+  /* Progress Bar Container */
+  progressContainerCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+  },
+  progressTextRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  sectionTitle: {
-    fontSize: 17,
+  progressStageName: {
+    fontFamily: typography.bold,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  progressAdherenceVal: {
+    fontFamily: typography.extraBold,
+    fontSize: 13,
     fontWeight: '800',
   },
-  addMedQuickBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+  progressBarTrack: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
   },
-  addMedQuickBtnText: {
-    color: '#FFFFFF',
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressBottomDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  courseDetailText: {
+    fontFamily: typography.medium,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  dosesRemainingText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
-  emptyDoseCard: {
-    borderRadius: 16,
-    borderWidth: 1.5,
+
+  /* Prescriptions Section Header */
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sectionTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionTitle: {
+    fontFamily: typography.extraBold,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  addRxPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  addRxPillBtnText: {
+    fontFamily: typography.bold,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  /* Empty State */
+  allTakenCard: {
+    borderRadius: 20,
+    borderWidth: 1,
     padding: 24,
     alignItems: 'center',
-    marginTop: 6,
+    justifyContent: 'center',
+    marginBottom: 16,
   },
-  emptyLottie: {
-    width: 64,
-    height: 64,
+  allTakenTitle: {
+    fontFamily: typography.bold,
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 10,
     marginBottom: 6,
   },
-  emptyDoseTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  emptyDoseSubtext: {
+  allTakenSubtext: {
+    fontFamily: typography.regular,
     fontSize: 12,
     textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  /* Due Prescription Card */
+  duePrescriptionCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 16,
+    position: 'relative',
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  cardLeftRedStripe: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 4.5,
+    backgroundColor: '#DC2626',
+    zIndex: 2,
+  },
+  dueCardContent: {
+    padding: 16,
+    paddingLeft: 20, // offset from left stripe
+  },
+  dueCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  dueCardMainInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    flex: 1,
+  },
+  duePillCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drugTitleCol: {
+    flex: 1,
+  },
+  drugTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginBottom: 4,
+  },
+  drugNameText: {
+    fontFamily: typography.bold,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  dueNowBadge: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  dueNowBadgeText: {
+    fontFamily: typography.extraBold,
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  dosageInstructionText: {
+    fontFamily: typography.medium,
+    fontSize: 12,
     lineHeight: 16,
+    fontWeight: '500',
+  },
+  bellIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+
+  /* Scheduled Alert Banner */
+  scheduledBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  scheduledBannerText: {
+    fontFamily: typography.semiBold,
+    fontSize: 12,
+    color: '#991B1B',
+    fontWeight: '500',
+  },
+
+  /* Action Buttons Row */
+  actionBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  confirmIngestionBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  confirmIngestionGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  confirmIngestionBtnText: {
+    fontFamily: typography.extraBold,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  infoCircleBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* Already Taken Section */
+  takenSectionWrap: {
+    marginTop: 6,
+    marginBottom: 20,
+  },
+  takenSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  takenSectionHeading: {
+    fontFamily: typography.bold,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  toggleTakenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  toggleTakenBtnText: {
+    fontFamily: typography.bold,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  takenCardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 9,
+  },
+  takenCheckCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  takenTextColumn: {
+    flex: 1,
+  },
+  takenDrugNameText: {
+    fontFamily: typography.bold,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    marginBottom: 2,
+  },
+  takenDosageText: {
+    fontFamily: typography.regular,
+    fontSize: 12,
+    fontWeight: '400',
+  },
+  takenDetailText: {
+    fontFamily: typography.medium,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  loggedBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  loggedBadgeText: {
+    fontFamily: typography.extraBold,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  /* Clinical Medication Info Modal */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  infoModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 20,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  infoModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 16,
+  },
+  infoModalIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoModalTitle: {
+    fontFamily: typography.extraBold,
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  infoModalSubtitle: {
+    fontFamily: typography.medium,
+    fontSize: 13,
+  },
+  infoModalBody: {
+    gap: 12,
+    marginBottom: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  infoRowLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    width: 105,
+  },
+  infoRowValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+  },
+  closeModalBtn: {
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeModalBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

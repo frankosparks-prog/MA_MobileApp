@@ -38,6 +38,7 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { typography } from '../theme/typography';
 import { UserRole, User } from '../types';
 import { authApi } from '../api';
 import client, { getAutoDetectedServerUrl } from '../api/client';
@@ -956,6 +957,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   heroProtocolText: {
+    fontFamily: typography.extraBold,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
@@ -1001,22 +1003,26 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   segmentText: {
+    fontFamily: typography.semiBold,
     fontSize: 13,
     fontWeight: '600',
   },
   segmentTextActive: {
+    fontFamily: typography.extraBold,
     fontWeight: '800',
   },
   formHeader: {
     marginBottom: 20,
   },
   formTitle: {
+    fontFamily: typography.extraBold,
     fontSize: 27,
     fontWeight: '800',
     letterSpacing: -0.5,
     marginBottom: 6,
   },
   formSubtitle: {
+    fontFamily: typography.medium,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '500',
@@ -1031,6 +1037,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   bannerText: {
+    fontFamily: typography.medium,
     fontSize: 12,
     fontWeight: '600',
     flex: 1,
@@ -1044,6 +1051,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   inputLabel: {
+    fontFamily: typography.bold,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.2,
@@ -1064,6 +1072,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     height: '100%',
+    fontFamily: typography.medium,
     fontSize: 14,
     fontWeight: '600',
     backgroundColor: 'transparent',
@@ -1077,6 +1086,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   countryCodeText: {
+    fontFamily: typography.bold,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1135,6 +1145,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionBtnText: {
+    fontFamily: typography.extraBold,
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
@@ -1151,6 +1162,7 @@ const styles = StyleSheet.create({
     height: 1,
   },
   dividerText: {
+    fontFamily: typography.semiBold,
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -1171,6 +1183,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   demoBtnText: {
+    fontFamily: typography.bold,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1182,10 +1195,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   footerPromptText: {
+    fontFamily: typography.medium,
     fontSize: 13,
     fontWeight: '500',
   },
   footerActionText: {
+    fontFamily: typography.extraBold,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -1196,6 +1211,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   securityFootnoteText: {
+    fontFamily: typography.medium,
     fontSize: 11,
     fontWeight: '500',
   },
