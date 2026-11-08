@@ -4,6 +4,7 @@ import { Plus, Trash2, Clock, Pill, Edit3, AlertCircle, Calendar } from 'lucide-
 import { useTheme } from '../theme/ThemeContext';
 import { Medication, User } from '../types';
 import { medicationApi } from '../api';
+import { typography } from '../theme/typography';
 
 interface MedicationsScreenProps {
   user: User;
@@ -423,8 +424,9 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   heroTagText: {
+    fontFamily: typography.extraBold,
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
     letterSpacing: 1.2,
   },
   heroActiveChip: {
@@ -434,14 +436,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   heroActiveChipText: {
+    fontFamily: typography.bold,
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   heroTitle: {
+    fontFamily: typography.extraBold,
     fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.3,
   },
   heroSubtitle: {
+    fontFamily: typography.medium,
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
@@ -461,10 +467,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroStatVal: {
+    fontFamily: typography.extraBold,
     fontSize: 18,
     fontWeight: '800',
   },
   heroStatLabel: {
+    fontFamily: typography.semiBold,
     fontSize: 10,
     fontWeight: '600',
     marginTop: 2,
@@ -486,6 +494,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   heroAddBtnText: {
+    fontFamily: typography.extraBold,
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 14,
@@ -499,11 +508,13 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   emptyTitle: {
+    fontFamily: typography.bold,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 6,
   },
   emptySubtext: {
+    fontFamily: typography.regular,
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
@@ -540,6 +551,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   drugName: {
+    fontFamily: typography.bold,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 4,
@@ -556,10 +568,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   qtyText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
   dosageText: {
+    fontFamily: typography.medium,
     fontSize: 12,
   },
   actionButtons: {
@@ -578,6 +592,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   instructionsText: {
+    fontFamily: typography.regular,
     fontSize: 12,
     marginTop: 10,
     paddingHorizontal: 10,
@@ -600,6 +615,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   courseTagText: {
+    fontFamily: typography.semiBold,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -609,6 +625,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   timesLabel: {
+    fontFamily: typography.semiBold,
     fontSize: 11,
     fontWeight: '600',
     marginBottom: 6,
@@ -628,6 +645,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   timeTagText: {
+    fontFamily: typography.semiBold,
     fontSize: 12,
     fontWeight: '600',
   },

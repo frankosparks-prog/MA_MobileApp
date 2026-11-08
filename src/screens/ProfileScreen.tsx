@@ -31,6 +31,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { User, GamificationProfile, Medication } from '../types';
 import { gamificationApi, medicationApi } from '../api';
 import client, { getAutoDetectedServerUrl } from '../api/client';
+import { typography } from '../theme/typography';
 
 interface ProfileScreenProps {
   user: User;
@@ -832,8 +833,9 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   heroTagText: {
+    fontFamily: typography.extraBold,
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
     letterSpacing: 1.2,
   },
   heroStatusChip: {
@@ -843,14 +845,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   heroStatusChipText: {
+    fontFamily: typography.bold,
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   heroTitle: {
+    fontFamily: typography.extraBold,
     fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.3,
   },
   heroSubtitle: {
+    fontFamily: typography.medium,
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
@@ -879,6 +885,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   heroEmergencyText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -902,10 +909,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroStatVal: {
+    fontFamily: typography.extraBold,
     fontSize: 17,
     fontWeight: '800',
   },
   heroStatLabel: {
+    fontFamily: typography.semiBold,
     fontSize: 10,
     fontWeight: '600',
     marginTop: 2,
@@ -932,10 +941,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   themeTitle: {
+    fontFamily: typography.bold,
     fontSize: 15,
     fontWeight: '700',
   },
   themeSubtext: {
+    fontFamily: typography.regular,
     fontSize: 11,
     marginTop: 1,
   },
@@ -945,8 +956,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   activeThemeBadgeText: {
+    fontFamily: typography.bold,
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   themeSegmentTrack: {
     flexDirection: 'row',
@@ -971,10 +983,12 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   themeSegmentText: {
+    fontFamily: typography.semiBold,
     fontSize: 12,
     fontWeight: '600',
   },
   themeSegmentTextActive: {
+    fontFamily: typography.extraBold,
     fontWeight: '800',
     color: '#FFFFFF',
   },
@@ -982,6 +996,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
+    fontFamily: typography.extraBold,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -1008,11 +1023,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   metricValue: {
+    fontFamily: typography.extraBold,
     fontSize: 17,
     fontWeight: '800',
     marginBottom: 2,
   },
   metricLabel: {
+    fontFamily: typography.semiBold,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -1035,10 +1052,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gardenTitle: {
+    fontFamily: typography.bold,
     fontSize: 15,
     fontWeight: '700',
   },
   gardenSubtext: {
+    fontFamily: typography.regular,
     fontSize: 11,
     marginTop: 2,
   },
@@ -1055,10 +1074,12 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   harvestStatLabel: {
+    fontFamily: typography.semiBold,
     fontSize: 10,
     fontWeight: '600',
   },
   harvestStatValue: {
+    fontFamily: typography.extraBold,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -1070,6 +1091,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   emptyCardText: {
+    fontFamily: typography.regular,
     fontSize: 13,
   },
   medSummaryCard: {
@@ -1088,10 +1110,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   medSummaryName: {
+    fontFamily: typography.bold,
     fontSize: 14,
     fontWeight: '700',
   },
   medSummaryDosage: {
+    fontFamily: typography.medium,
     fontSize: 11,
     marginTop: 2,
   },
@@ -1105,6 +1129,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   courseTagText: {
+    fontFamily: typography.semiBold,
     fontSize: 10,
     fontWeight: '600',
   },
@@ -1126,10 +1151,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingTitle: {
+    fontFamily: typography.bold,
     fontSize: 14,
     fontWeight: '700',
   },
   settingValue: {
+    fontFamily: typography.regular,
     fontSize: 11,
     marginTop: 2,
   },
@@ -1147,6 +1174,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   statusPillText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -1159,6 +1187,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 7,
+    fontFamily: typography.regular,
     fontSize: 12,
   },
   serverEditButtons: {
@@ -1173,6 +1202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   serverActionBtnText: {
+    fontFamily: typography.bold,
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 11,
@@ -1187,6 +1217,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   serverActionBtnAutoText: {
+    fontFamily: typography.bold,
     fontWeight: '700',
     fontSize: 11,
   },
@@ -1202,6 +1233,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   textButtonText: {
+    fontFamily: typography.bold,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1216,10 +1248,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   logoutBtnText: {
+    fontFamily: typography.extraBold,
     fontSize: 14,
     fontWeight: '800',
   },
   versionFooter: {
+    fontFamily: typography.regular,
     textAlign: 'center',
     fontSize: 11,
     marginBottom: 20,

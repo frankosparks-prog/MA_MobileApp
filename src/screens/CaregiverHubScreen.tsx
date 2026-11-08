@@ -21,6 +21,7 @@ import {
 import { useTheme } from '../theme/ThemeContext';
 import { CaregiverAlert, User } from '../types';
 import { adherenceApi, authApi } from '../api';
+import { typography } from '../theme/typography';
 
 interface CaregiverHubScreenProps {
   user: User;
@@ -536,8 +537,9 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   heroTagText: {
+    fontFamily: typography.extraBold,
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
     letterSpacing: 1.2,
   },
   heroStatusChip: {
@@ -555,14 +557,18 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   heroStatusChipText: {
+    fontFamily: typography.bold,
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   heroTitle: {
+    fontFamily: typography.extraBold,
     fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -0.3,
   },
   heroSubtitle: {
+    fontFamily: typography.medium,
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
@@ -582,10 +588,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroStatVal: {
+    fontFamily: typography.extraBold,
     fontSize: 17,
     fontWeight: '800',
   },
   heroStatLabel: {
+    fontFamily: typography.semiBold,
     fontSize: 10,
     fontWeight: '600',
     marginTop: 2,
@@ -607,10 +615,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   linkTitle: {
+    fontFamily: typography.bold,
     fontSize: 15,
     fontWeight: '700',
   },
   linkSubtext: {
+    fontFamily: typography.regular,
     fontSize: 12,
     marginBottom: 12,
     lineHeight: 16,
@@ -624,6 +634,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    fontFamily: typography.regular,
     fontSize: 13,
   },
   linkBtn: {
@@ -637,6 +648,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   linkBtnText: {
+    fontFamily: typography.bold,
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
@@ -653,10 +665,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionTitle: {
+    fontFamily: typography.bold,
     fontSize: 16,
     fontWeight: '700',
   },
   alertCountBadge: {
+    fontFamily: typography.extraBold,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -669,6 +683,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   emptyContactsText: {
+    fontFamily: typography.regular,
     fontSize: 12,
     lineHeight: 16,
   },
@@ -694,10 +709,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contactName: {
+    fontFamily: typography.bold,
     fontSize: 14,
     fontWeight: '700',
   },
   contactPhone: {
+    fontFamily: typography.regular,
     fontSize: 12,
     marginTop: 2,
   },
@@ -707,6 +724,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   contactBadgeText: {
+    fontFamily: typography.semiBold,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -718,11 +736,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   healthyStateTitle: {
+    fontFamily: typography.bold,
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 4,
   },
   healthyStateSubtext: {
+    fontFamily: typography.regular,
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 16,
@@ -744,10 +764,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   patientName: {
+    fontFamily: typography.bold,
     fontSize: 15,
     fontWeight: '700',
   },
   alertStatusText: {
+    fontFamily: typography.semiBold,
     fontSize: 11,
     fontWeight: '600',
     marginTop: 1,
@@ -761,10 +783,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   phoneTagText: {
+    fontFamily: typography.semiBold,
     fontSize: 11,
     fontWeight: '600',
   },
   alertMsg: {
+    fontFamily: typography.regular,
     fontSize: 13,
     lineHeight: 18,
     marginVertical: 10,
@@ -781,6 +805,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   ackBtnText: {
+    fontFamily: typography.bold,
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
@@ -794,6 +819,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   acknowledgedText: {
+    fontFamily: typography.bold,
     fontSize: 12,
     fontWeight: '700',
   },

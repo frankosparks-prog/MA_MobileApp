@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import LottieView from 'lottie-react-native';
-import { X, Sparkles, AlertCircle } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { X, Sparkles, AlertCircle, Pill, Check, Droplets } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
-import { NourishButton } from '../components/NourishButton';
+import { typography } from '../theme/typography';
 import hapticService from '../services/hapticService';
 import soundService from '../services/soundService';
 import { EscalationLevel, Medication, Quote } from '../types';
@@ -29,11 +30,13 @@ export const ReminderOverlayModal: React.FC<ReminderOverlayModalProps> = ({
 }) => {
   const { theme, isDark } = useTheme();
   const [showCelebration, setShowCelebration] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setShowCelebration(false);
-      // Trigger appropriate sound & haptic for this stage
+      setIsSubmitting(false);
+      // Trigger appropriate clinical sound & haptic for this escalation stage
       if (level === 1) {
         soundService.playChime();
         hapticService.triggerHeartbeat();
@@ -48,6 +51,8 @@ export const ReminderOverlayModal: React.FC<ReminderOverlayModalProps> = ({
   }, [visible, level]);
 
   const handleConfirmWithCelebration = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setShowCelebration(true);
     soundService.playWaterSplash();
     hapticService.triggerNourishSuccess();
@@ -56,99 +61,118 @@ export const ReminderOverlayModal: React.FC<ReminderOverlayModalProps> = ({
     } finally {
       setTimeout(() => {
         setShowCelebration(false);
+        setIsSubmitting(false);
       }, 1000);
     }
   };
 
   if (!visible || !medication) return null;
 
-  // Stage configurations
+  // Clinical Stage configurations
   let stageTitle = 'Medication Due';
   let stageSubtitle = 'Time for your scheduled dose.';
-  let auraColor = 'rgba(0, 123, 167, 0.35)';
+  let stageThemeColor = isDark ? '#38BDF8' : '#0284C7';
+  let badgeBg = isDark ? 'rgba(56, 189, 248, 0.16)' : '#E0F2FE';
+  let badgeBorder = isDark ? 'rgba(56, 189, 248, 0.35)' : '#BAE6FD';
+  let auraColor = isDark ? 'rgba(0, 123, 167, 0.35)' : 'rgba(186, 230, 253, 0.6)';
 
   if (level === 2) {
     stageTitle = 'Second Reminder';
     stageSubtitle = 'Please verify your dose to maintain your adherence streak.';
-    auraColor = 'rgba(255, 179, 0, 0.35)';
+    stageThemeColor = '#F59E0B';
+    badgeBg = isDark ? 'rgba(245, 158, 11, 0.16)' : '#FEF3C7';
+    badgeBorder = isDark ? 'rgba(245, 158, 11, 0.35)' : '#FDE68A';
+    auraColor = isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(254, 243, 199, 0.6)';
   } else if (level === 3) {
     stageTitle = 'Urgent Notice';
     stageSubtitle = 'Tap below to confirm intake before caregiver escalation triggers.';
-    auraColor = 'rgba(239, 68, 68, 0.45)';
+    stageThemeColor = '#EF4444';
+    badgeBg = isDark ? 'rgba(239, 68, 68, 0.16)' : '#FEE2E2';
+    badgeBorder = isDark ? 'rgba(239, 68, 68, 0.35)' : '#FECACA';
+    auraColor = isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(254, 226, 226, 0.6)';
   }
+
+  const defaultQuoteText =
+    streak >= 7
+      ? 'One whole week without missing a beat! Your consistency is healing your body.'
+      : 'Every dose taken on time actively nourishes your botanical sanctuary.';
+
+  const displayQuote = quote?.text || defaultQuoteText;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
       <View style={styles.backdrop}>
-        {/* Glassmorphic Overlay Card */}
+        {/* Glassmorphic Rounded Sanctuary Dialog */}
         <View
           style={[
             styles.glassCard,
             {
-              backgroundColor: isDark ? 'rgba(14, 20, 30, 0.96)' : 'rgba(255, 255, 255, 0.98)',
-              borderColor: auraColor,
+              backgroundColor: isDark ? '#0C1322' : '#FFFFFF',
+              borderColor: isDark ? 'rgba(56, 189, 248, 0.25)' : '#E2E8F0',
+              shadowColor: isDark ? '#000000' : '#007BA7',
             },
           ]}
         >
-          {/* Dismiss button */}
+          {/* Top Dismiss Button */}
           <TouchableOpacity
             style={[
               styles.closeBtn,
               {
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F1F5F9',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
               },
             ]}
             onPress={onDismiss}
+            activeOpacity={0.7}
           >
-            <X size={18} color={theme.textSubtle} />
+            <X size={16} color={theme.textSecondary} />
           </TouchableOpacity>
 
-          {/* Motivational Quote Banner */}
-          {quote && (
-            <View
+          {/* 1. Motivational Praise & Streak Banner */}
+          <View
+            style={[
+              styles.quoteBox,
+              {
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FEF3C7',
+                borderColor: isDark ? 'rgba(245, 158, 11, 0.28)' : '#FDE68A',
+              },
+            ]}
+          >
+            <View style={styles.quoteIconBadge}>
+              <Sparkles size={14} color="#F59E0B" />
+            </View>
+            <Text
               style={[
-                styles.quoteBox,
-                {
-                  backgroundColor: isDark ? 'rgba(251, 191, 36, 0.1)' : '#FEF3C7',
-                },
+                styles.quoteText,
+                { color: isDark ? '#FDE68A' : '#92400E' },
               ]}
             >
-              <Sparkles size={14} color={theme.bloomGold} />
-              <Text
-                style={[
-                  styles.quoteText,
-                  { color: isDark ? '#FDE68A' : '#92400E' },
-                ]}
-              >
-                "{quote.text}"
-              </Text>
-            </View>
-          )}
+              "{displayQuote}"
+            </Text>
+          </View>
 
-          {/* Stage Banner */}
+          {/* 2. Stage Row: Escalation Level Badge & Stage Title */}
           <View style={styles.stageRow}>
             <View
               style={[
                 styles.levelBadge,
-                level === 2 && styles.levelBadge2,
-                level === 3 && [styles.levelBadge3, { backgroundColor: theme.alertContainer }],
+                {
+                  backgroundColor: badgeBg,
+                  borderColor: badgeBorder,
+                },
               ]}
             >
-              <Text
-                style={[
-                  styles.levelBadgeText,
-                  { color: level === 3 ? theme.alert : theme.textPrimary },
-                ]}
-              >
+              <Text style={[styles.levelBadgeText, { color: stageThemeColor }]}>
                 Reminder {level} of 3
               </Text>
             </View>
+
             <Text style={[styles.stageTitleText, { color: theme.textPrimary }]}>
               {stageTitle}
             </Text>
           </View>
 
-          {/* Centerpiece: Animated Lottie Medical Pulse Capsule */}
+          {/* 3. Centerpiece: Animated Medical Cardiac Pulse with Ambient Halo */}
           <View style={styles.buddyContainer}>
             <View style={[styles.buddyAura, { backgroundColor: auraColor }]} />
             <LottieView
@@ -159,24 +183,58 @@ export const ReminderOverlayModal: React.FC<ReminderOverlayModalProps> = ({
             />
           </View>
 
-          {/* Medication & Quantity Details */}
-          <View style={styles.medCard}>
+          {/* 4. Medication Clinical Details Spotlight Card */}
+          <View
+            style={[
+              styles.medCard,
+              {
+                backgroundColor: isDark ? '#141D2E' : '#F8FAFC',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : '#E2E8F0',
+              },
+            ]}
+          >
+            {/* Drug Name */}
             <Text style={[styles.medNameText, { color: theme.textPrimary }]}>
               {medication.drugName}
             </Text>
+
+            {/* Badges: Quantity & Dosage */}
             <View style={styles.medSubRow}>
               <View
                 style={[
                   styles.qtyBadge,
-                  { backgroundColor: theme.emerald },
+                  {
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : '#ECFDF5',
+                    borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : '#A7F3D0',
+                  },
                 ]}
               >
-                <Text style={styles.qtyText}>{medication.quantity || '1 pill'}</Text>
+                <Text style={styles.qtyText}>
+                  {medication.quantity || '1 pill'}
+                </Text>
               </View>
-              <Text style={[styles.dosageText, { color: theme.textSecondary }]}>
-                ({medication.dosage})
-              </Text>
+
+              <View
+                style={[
+                  styles.dosageBadge,
+                  {
+                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.14)' : '#E0F2FE',
+                    borderColor: isDark ? 'rgba(56, 189, 248, 0.28)' : '#BAE6FD',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dosageText,
+                    { color: isDark ? '#38BDF8' : '#0284C7' },
+                  ]}
+                >
+                  ({medication.dosage || '001'})
+                </Text>
+              </View>
             </View>
+
+            {/* Instruction / Stage Subtitle */}
             <Text style={[styles.subtitleText, { color: theme.textSecondary }]}>
               {stageSubtitle}
             </Text>
@@ -189,11 +247,12 @@ export const ReminderOverlayModal: React.FC<ReminderOverlayModalProps> = ({
                 styles.goalBox,
                 {
                   backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F1F5F9',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
                 },
               ]}
             >
               <View style={styles.goalHeader}>
-                <Text style={[styles.goalLabel, { color: theme.textSubtle }]}>
+                <Text style={[styles.goalLabel, { color: theme.textSecondary }]}>
                   Streak Milestone Goal
                 </Text>
                 <Text style={[styles.goalValue, { color: theme.bloomGold }]}>
@@ -232,13 +291,30 @@ export const ReminderOverlayModal: React.FC<ReminderOverlayModalProps> = ({
             >
               <AlertCircle size={15} color={theme.alert} />
               <Text style={[styles.urgentNoticeText, { color: theme.alert }]}>
-                Final in-app reminder before your circle of care is notified.
+                Final in-app reminder before your circle of care is notified via SMS.
               </Text>
             </View>
           )}
 
-          {/* The Confirmation Action Button */}
-          <NourishButton onNourish={handleConfirmWithCelebration} title="Confirm Dose Taken" />
+          {/* 5. Tactile Confirmation Action Button */}
+          <TouchableOpacity
+            style={styles.confirmActionBtn}
+            onPress={handleConfirmWithCelebration}
+            activeOpacity={0.85}
+            disabled={isSubmitting}
+          >
+            <LinearGradient
+              colors={['#0284C7', '#007BA7']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.confirmActionGradient}
+            >
+              <Check size={19} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={styles.confirmActionBtnText}>
+                {isSubmitting ? 'Confirming...' : 'Confirm Dose Taken'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
           {/* Lottie Confetti Celebration Overlay */}
           {showCelebration && (
@@ -260,22 +336,21 @@ export const ReminderOverlayModal: React.FC<ReminderOverlayModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(5, 8, 14, 0.88)',
+    backgroundColor: 'rgba(3, 7, 18, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   glassCard: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 390,
     borderRadius: 28,
     borderWidth: 1.5,
     padding: 22,
     alignItems: 'center',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
+    shadowOpacity: 0.38,
+    shadowRadius: 28,
     elevation: 12,
     position: 'relative',
   },
@@ -286,6 +361,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -293,49 +369,56 @@ const styles = StyleSheet.create({
   quoteBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 14,
+    paddingVertical: 9,
+    borderRadius: 16,
+    borderWidth: 1,
     marginBottom: 14,
-    marginRight: 24,
+    marginRight: 28,
+  },
+  quoteIconBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   quoteText: {
+    fontFamily: typography.medium,
     fontSize: 12,
-    fontWeight: '600',
+    lineHeight: 17,
+    fontWeight: '500',
+    fontStyle: 'italic',
     flexShrink: 1,
   },
   stageRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
+    gap: 10,
+    marginBottom: 8,
   },
   levelBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  levelBadge2: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-  },
-  levelBadge3: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3.5,
+    borderRadius: 10,
+    borderWidth: 1,
   },
   levelBadgeText: {
+    fontFamily: typography.extraBold,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   stageTitleText: {
-    fontSize: 14,
+    fontFamily: typography.bold,
+    fontSize: 15,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   buddyContainer: {
-    width: 140,
-    height: 140,
+    width: 135,
+    height: 135,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -343,47 +426,71 @@ const styles = StyleSheet.create({
   },
   buddyAura: {
     position: 'absolute',
+    width: 125,
+    height: 125,
+    borderRadius: 62.5,
+  },
+  lottiePulse: {
     width: 130,
     height: 130,
-    borderRadius: 65,
   },
   medCard: {
+    width: '100%',
     alignItems: 'center',
-    marginVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginVertical: 10,
   },
   medNameText: {
-    fontSize: 22,
+    fontFamily: typography.extraBold,
+    fontSize: 23,
     fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 6,
   },
   medSubRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-    marginBottom: 6,
+    gap: 8,
+    marginBottom: 8,
   },
   qtyBadge: {
-    paddingHorizontal: 9,
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
     borderRadius: 8,
+    borderWidth: 1,
   },
   qtyText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: typography.bold,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  dosageBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   dosageText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: typography.bold,
+    fontSize: 12,
+    fontWeight: '700',
   },
   subtitleText: {
-    fontSize: 13,
+    fontFamily: typography.medium,
+    fontSize: 12.5,
+    lineHeight: 17,
+    fontWeight: '500',
     textAlign: 'center',
     paddingHorizontal: 12,
   },
   goalBox: {
     width: '100%',
     borderRadius: 12,
+    borderWidth: 1,
     padding: 10,
     marginVertical: 8,
   },
@@ -393,10 +500,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   goalLabel: {
+    fontFamily: typography.semiBold,
     fontSize: 12,
     fontWeight: '600',
   },
   goalValue: {
+    fontFamily: typography.bold,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -412,16 +521,44 @@ const styles = StyleSheet.create({
   urgentNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     marginVertical: 8,
   },
-  lottiePulse: {
-    width: 135,
-    height: 135,
+  urgentNoticeText: {
+    fontFamily: typography.medium,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  confirmActionBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginTop: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  confirmActionGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  confirmActionBtnText: {
+    fontFamily: typography.extraBold,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   celebrationOverlay: {
     position: 'absolute',
@@ -436,10 +573,5 @@ const styles = StyleSheet.create({
   confetti: {
     width: 320,
     height: 320,
-  },
-  urgentNoticeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    flexShrink: 1,
   },
 });

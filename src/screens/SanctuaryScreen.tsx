@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   Platform,
+  Animated,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,6 +32,8 @@ import {
   Repeat,
   Heart,
   Droplets,
+  Calendar,
+  X,
 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { User, Medication, AdherenceLog, GamificationProfile } from '../types';
@@ -153,32 +156,122 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
   // User requirement: ONLY log the previous 3 instead of everything
   const displayedTakenLogs = showAllTaken ? takenLogs : takenLogs.slice(0, 3);
 
+  // Cardiac pulse animation for SAFETY NET ARMED indicator
+  const safetyNetPulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(safetyNetPulseAnim, {
+          toValue: 1.35,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(safetyNetPulseAnim, {
+          toValue: 0.9,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(safetyNetPulseAnim, {
+          toValue: 1.2,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(safetyNetPulseAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.delay(400),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [safetyNetPulseAnim]);
+
+  // Robust parser for scheduled time strings (ISO timestamps, Date strings, or HH:mm)
+  const parseScheduledDate = (timeStr?: string): Date => {
+    if (!timeStr) return new Date();
+
+    // Check if it's an ISO or date-time string (e.g. "2026-11-08T20:23:00.000Z")
+    if (timeStr.includes('T') || (timeStr.includes('-') && timeStr.length > 8)) {
+      const parsed = new Date(timeStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    // Clean any time string like "20:23", "08:00", "8:00 AM", "10:23 PM"
+    const now = new Date();
+    const isPM = /pm/i.test(timeStr);
+    const isAM = /am/i.test(timeStr);
+    const clean = timeStr.replace(/[^0-9:]/g, '');
+    const parts = clean.split(':');
+    if (parts.length >= 2) {
+      let hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10) || 0;
+      if (!isNaN(hours)) {
+        if (isPM && hours < 12) hours += 12;
+        if (isAM && hours === 12) hours = 0;
+        const sched = new Date(now);
+        sched.setHours(hours, minutes, 0, 0);
+        return sched;
+      }
+    }
+
+    return now;
+  };
+
   // Time formatter
   const formatTime = (timeStr?: string) => {
     if (!timeStr) return '08:00 AM';
-    const parts = timeStr.split(':');
-    if (parts.length < 2) return timeStr;
-    let hour = parseInt(parts[0], 10);
-    const minute = parts[1].slice(0, 2);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    hour = hour % 12 || 12;
-    return `${hour}:${minute} ${ampm}`;
+
+    // If it's an ISO string or contains a date component:
+    if (timeStr.includes('T') || (timeStr.includes('-') && timeStr.length > 8)) {
+      const parsed = new Date(timeStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+      }
+    }
+
+    // If it's a simple HH:mm string:
+    const isPM = /pm/i.test(timeStr);
+    const isAM = /am/i.test(timeStr);
+    const clean = timeStr.replace(/[^0-9:]/g, '');
+    const parts = clean.split(':');
+    if (parts.length >= 2) {
+      let hour = parseInt(parts[0], 10);
+      const minute = parts[1].slice(0, 2).padStart(2, '0');
+      if (!isNaN(hour)) {
+        if (isPM && hour < 12) hour += 12;
+        if (isAM && hour === 12) hour = 0;
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hr12 = hour % 12 || 12;
+        return `${hr12}:${minute} ${ampm}`;
+      }
+    }
+
+    return timeStr;
   };
 
-  // Calculate relative overdue or due string
+  // Calculate relative overdue or due string with accurate boundary handling
   const getRelativeDueInfo = (scheduledTimeStr?: string) => {
     if (!scheduledTimeStr) return { text: 'Due Now', isOverdue: true };
-    const parts = scheduledTimeStr.split(':');
-    if (parts.length < 2) return { text: 'Due Now', isOverdue: true };
 
+    const sched = parseScheduledDate(scheduledTimeStr);
     const now = new Date();
-    const sched = new Date();
-    sched.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-
     const diffMs = now.getTime() - sched.getTime();
     const diffMins = Math.round(diffMs / 60000);
 
-    if (diffMins > 0) {
+    // If within 5 minutes of scheduled time, treat as "Due Now"
+    if (Math.abs(diffMins) <= 5) {
+      return { text: 'Due Now', isOverdue: true };
+    }
+
+    if (diffMins > 5) {
+      if (diffMins >= 1440) {
+        const days = Math.floor(diffMins / 1440);
+        return { text: `Overdue by ${days}d`, isOverdue: true };
+      }
       if (diffMins >= 60) {
         const hrs = Math.floor(diffMins / 60);
         const mins = diffMins % 60;
@@ -187,8 +280,14 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
       return { text: `Overdue by ${diffMins} min`, isOverdue: true };
     } else {
       const waitMins = Math.abs(diffMins);
+      if (waitMins >= 1440) {
+        const days = Math.floor(waitMins / 1440);
+        return { text: `In ${days}d`, isOverdue: false };
+      }
       if (waitMins >= 60) {
-        return { text: `In ${Math.floor(waitMins / 60)}h ${waitMins % 60}m`, isOverdue: false };
+        const hrs = Math.floor(waitMins / 60);
+        const mins = waitMins % 60;
+        return { text: `In ${hrs}h ${mins > 0 ? `${mins}m` : ''}`, isOverdue: false };
       }
       return { text: `In ${waitMins}m`, isOverdue: false };
     }
@@ -289,7 +388,7 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
               </Text>
             </View>
 
-            {/* Armed Safety Net Pill */}
+            {/* Armed Safety Net Pill with Synchronized Cardiac Heartbeat Pulse */}
             <View
               style={[
                 styles.safetyNetPill,
@@ -299,14 +398,19 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
                 },
               ]}
             >
-              <View style={styles.safetyNetPulsingDot} />
+              <Animated.View
+                style={[
+                  styles.safetyNetPulsingDot,
+                  { transform: [{ scale: safetyNetPulseAnim }] },
+                ]}
+              />
               <Text style={styles.safetyNetPillText}>SAFETY NET ARMED</Text>
             </View>
           </View>
 
-          {/* Animated Hospital Cardiac Pulse ECG Monitor */}
+          {/* Patient Vital Signs Monitor Telemetry Strip */}
           <View style={styles.ecgContainer}>
-            <HospitalPulseEcg isDark={isDark} height={28} bpm={74} />
+            <HospitalPulseEcg isDark={isDark} height={32} bpm={74} showTelemetryHUD={true} />
           </View>
 
           {/* Greeting Typography & Animated Successful Target SVG Centerpiece */}
@@ -464,7 +568,7 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
                 },
               ]}
             />
-            <PlantIllustration size={165} />
+            <PlantIllustration size={165} progress={adherencePercent} />
 
             {/* Course Stage Label */}
             <Text style={[styles.plantCourseLabel, { color: theme.textSecondary }]}>
@@ -804,57 +908,170 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
             style={[
               styles.infoModalCard,
               {
-                backgroundColor: isDark ? '#111827' : '#FFFFFF',
-                borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : '#E2E8F0',
+                backgroundColor: isDark ? '#0D1424' : '#FFFFFF',
+                borderColor: isDark ? 'rgba(56, 189, 248, 0.28)' : '#E2E8F0',
+                shadowColor: isDark ? '#000000' : '#007BA7',
               },
             ]}
           >
+            {/* Header: Drug Name, Dosage Badge & Close Button */}
             <View style={styles.infoModalHeader}>
-              <View style={[styles.infoModalIconCircle, { backgroundColor: isDark ? 'rgba(0, 123, 167, 0.2)' : '#E0F2FE' }]}>
-                <Pill size={24} color={theme.primaryLight} />
+              <View
+                style={[
+                  styles.infoModalIconCircle,
+                  {
+                    backgroundColor: isDark ? 'rgba(0, 123, 167, 0.25)' : '#E0F2FE',
+                    borderColor: isDark ? 'rgba(56, 189, 248, 0.3)' : '#BAE6FD',
+                  },
+                ]}
+              >
+                <Pill size={22} color={isDark ? '#38BDF8' : '#0284C7'} strokeWidth={2.4} />
               </View>
-              <View style={{ flex: 1 }}>
+
+              <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={[styles.infoModalTitle, { color: theme.textPrimary }]}>
                   {selectedMedForInfo?.drugName}
                 </Text>
-                <Text style={[styles.infoModalSubtitle, { color: theme.textSecondary }]}>
-                  {selectedMedForInfo?.dosage} • {selectedMedForInfo?.quantity || 'Standard intake'}
-                </Text>
+                <View style={styles.infoModalBadgeRow}>
+                  <View
+                    style={[
+                      styles.infoPillBadge,
+                      {
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE',
+                        borderColor: isDark ? 'rgba(56, 189, 248, 0.3)' : '#BAE6FD',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.infoPillBadgeText,
+                        { color: isDark ? '#38BDF8' : '#0284C7' },
+                      ]}
+                    >
+                      {selectedMedForInfo?.dosage || '001'} • {selectedMedForInfo?.quantity || '1 pill'}
+                    </Text>
+                  </View>
+                </View>
               </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalCloseIconBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F1F5F9',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
+                  },
+                ]}
+                onPress={() => setSelectedMedForInfo(null)}
+              >
+                <X size={18} color={theme.textSecondary} />
+              </TouchableOpacity>
             </View>
 
+            {/* Structured Clinical Sections */}
             <View style={styles.infoModalBody}>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoRowLabel, { color: theme.textMuted }]}>Instructions:</Text>
-                <Text style={[styles.infoRowValue, { color: theme.textPrimary }]}>
-                  {selectedMedForInfo?.instructions || 'Take with water as prescribed.'}
+              {/* 1. Instructions */}
+              <View
+                style={[
+                  styles.infoSectionCard,
+                  {
+                    backgroundColor: isDark ? '#141D2E' : '#F8FAFC',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : '#E2E8F0',
+                  },
+                ]}
+              >
+                <View style={styles.infoSectionTop}>
+                  <ClipboardCheck size={14} color={isDark ? '#38BDF8' : '#0284C7'} strokeWidth={2.4} />
+                  <Text style={[styles.infoSectionLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    Instructions:
+                  </Text>
+                </View>
+                <Text style={[styles.infoSectionValue, { color: theme.textPrimary }]}>
+                  {selectedMedForInfo?.instructions || 'Take with water after meals'}
                 </Text>
               </View>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoRowLabel, { color: theme.textMuted }]}>Daily Schedule:</Text>
-                <Text style={[styles.infoRowValue, { color: theme.textPrimary }]}>
-                  {selectedMedForInfo?.scheduleInterval || '08:00 AM'}
+
+              {/* 2. Daily Schedule */}
+              <View
+                style={[
+                  styles.infoSectionCard,
+                  {
+                    backgroundColor: isDark ? '#141D2E' : '#F8FAFC',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : '#E2E8F0',
+                  },
+                ]}
+              >
+                <View style={styles.infoSectionTop}>
+                  <Clock size={14} color={isDark ? '#38BDF8' : '#0284C7'} strokeWidth={2.4} />
+                  <Text style={[styles.infoSectionLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    Daily Schedule:
+                  </Text>
+                </View>
+                <Text style={[styles.infoSectionValue, { color: isDark ? '#38BDF8' : '#0369A1' }]}>
+                  {selectedMedForInfo?.scheduleInterval || '08:00,20:23'}
                 </Text>
               </View>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoRowLabel, { color: theme.textMuted }]}>Regimen Course:</Text>
-                <Text style={[styles.infoRowValue, { color: theme.textPrimary }]}>
-                  {selectedMedForInfo?.durationDays ? `${selectedMedForInfo.durationDays} Days Duration` : 'Ongoing Regimen'}
+
+              {/* 3. Regimen Course */}
+              <View
+                style={[
+                  styles.infoSectionCard,
+                  {
+                    backgroundColor: isDark ? '#141D2E' : '#F8FAFC',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.07)' : '#E2E8F0',
+                  },
+                ]}
+              >
+                <View style={styles.infoSectionTop}>
+                  <Calendar size={14} color={isDark ? '#38BDF8' : '#0284C7'} strokeWidth={2.4} />
+                  <Text style={[styles.infoSectionLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    Regimen Course:
+                  </Text>
+                </View>
+                <Text style={[styles.infoSectionValue, { color: theme.textPrimary }]}>
+                  {selectedMedForInfo?.durationDays
+                    ? `${selectedMedForInfo.durationDays} Days Duration`
+                    : 'Ongoing Regimen'}
                 </Text>
               </View>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoRowLabel, { color: theme.textMuted }]}>Safety Net:</Text>
-                <Text style={[styles.infoRowValue, { color: theme.primaryLight }]}>
+
+              {/* 4. Safety Net */}
+              <View
+                style={[
+                  styles.infoSectionCard,
+                  {
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#ECFDF5',
+                    borderColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#A7F3D0',
+                  },
+                ]}
+              >
+                <View style={styles.infoSectionTop}>
+                  <ShieldCheck size={14} color="#10B981" strokeWidth={2.4} />
+                  <Text style={[styles.infoSectionLabel, { color: isDark ? '#34D399' : '#047857' }]}>
+                    Safety Net:
+                  </Text>
+                </View>
+                <Text style={[styles.infoSectionValue, { color: isDark ? '#34D399' : '#059669' }]}>
                   Active • 3-Tier Alert & Caregiver SMS
                 </Text>
               </View>
             </View>
 
+            {/* Acknowledge Action Button */}
             <TouchableOpacity
-              style={[styles.closeModalBtn, { backgroundColor: theme.primary }]}
+              style={styles.closeModalBtn}
               onPress={() => setSelectedMedForInfo(null)}
+              activeOpacity={0.85}
             >
-              <Text style={styles.closeModalBtnText}>Close Details</Text>
+              <LinearGradient
+                colors={['#0284C7', '#007BA7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.closeModalBtnGradient}
+              >
+                <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
+                <Text style={styles.closeModalBtnText}>Acknowledge Details</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -932,7 +1149,6 @@ const styles = StyleSheet.create({
   },
   ecgContainer: {
     width: '100%',
-    height: 28,
     justifyContent: 'center',
     marginBottom: 12,
   },
@@ -1401,75 +1617,115 @@ const styles = StyleSheet.create({
   /* Clinical Medication Info Modal */
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    backgroundColor: 'rgba(3, 7, 18, 0.78)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 20,
   },
   infoModalCard: {
     width: '100%',
-    maxWidth: 380,
-    borderRadius: 22,
-    borderWidth: 1,
+    maxWidth: 390,
+    borderRadius: 26,
+    borderWidth: 1.5,
     padding: 20,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 10,
   },
   infoModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 14,
   },
   infoModalIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   infoModalTitle: {
     fontFamily: typography.extraBold,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
-    marginBottom: 2,
+    letterSpacing: -0.3,
+    marginBottom: 3,
   },
-  infoModalSubtitle: {
-    fontFamily: typography.medium,
-    fontSize: 13,
-  },
-  infoModalBody: {
-    gap: 12,
-    marginBottom: 20,
-  },
-  infoRow: {
+  infoModalBadgeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
+    alignItems: 'center',
   },
-  infoRowLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    width: 105,
+  infoPillBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1,
   },
-  infoRowValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
+  infoPillBadgeText: {
+    fontFamily: typography.bold,
+    fontSize: 11,
+    fontWeight: '700',
   },
-  closeModalBtn: {
-    height: 46,
-    borderRadius: 14,
+  modalCloseIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  infoModalBody: {
+    gap: 9,
+    marginBottom: 16,
+  },
+  infoSectionCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  infoSectionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  infoSectionLabel: {
+    fontFamily: typography.bold,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  infoSectionValue: {
+    fontFamily: typography.semiBold,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  closeModalBtn: {
+    height: 48,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  closeModalBtnGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   closeModalBtnText: {
+    fontFamily: typography.extraBold,
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });

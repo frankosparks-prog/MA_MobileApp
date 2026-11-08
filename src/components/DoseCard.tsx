@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { CheckCircle2, Clock, AlertTriangle, Pill, ShieldAlert } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { Medication, AdherenceStatus, EscalationLevel, AdherenceLog } from '../types';
+import { typography } from '../theme/typography';
 
 interface DoseCardProps {
   medication?: Medication | null;
@@ -258,6 +259,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   timeText: {
+    fontFamily: typography.bold,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -271,18 +273,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusTakenText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
   statusUpcomingText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
   statusDueText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
   statusMissedText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -301,6 +307,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   drugName: {
+    fontFamily: typography.bold,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -316,13 +323,16 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   quantityText: {
+    fontFamily: typography.bold,
     fontSize: 11,
     fontWeight: '700',
   },
   dosageText: {
+    fontFamily: typography.medium,
     fontSize: 11,
   },
   instructionsText: {
+    fontFamily: typography.regular,
     fontSize: 11,
     marginTop: 6,
   },
@@ -337,6 +347,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmBtnText: {
+    fontFamily: typography.bold,
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',

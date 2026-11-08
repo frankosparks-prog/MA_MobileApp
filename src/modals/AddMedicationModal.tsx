@@ -14,6 +14,7 @@ import {
 import { X, Plus, Clock, Pill, Check, Edit3 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { Medication, PlantType } from '../types';
+import { typography } from '../theme/typography';
 
 interface AddMedicationModalProps {
   visible: boolean;
@@ -536,6 +537,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   title: {
+    fontFamily: typography.bold,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -550,6 +552,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   errorText: {
+    fontFamily: typography.semiBold,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -560,6 +563,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   label: {
+    fontFamily: typography.semiBold,
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 8,
@@ -569,6 +573,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    fontFamily: typography.regular,
     fontSize: 14,
   },
   chipsRow: {
@@ -586,10 +591,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   chipText: {
+    fontFamily: typography.medium,
     fontSize: 13,
     fontWeight: '500',
   },
   chipTextSelected: {
+    fontFamily: typography.bold,
     fontWeight: '700',
   },
   timeChipsRow: {
@@ -608,6 +615,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   timeBadgeText: {
+    fontFamily: typography.bold,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -621,6 +629,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    fontFamily: typography.regular,
     fontSize: 14,
   },
   addTimeBtn: {
@@ -631,6 +640,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   addTimeBtnText: {
+    fontFamily: typography.bold,
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
@@ -650,6 +660,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   cancelBtnText: {
+    fontFamily: typography.semiBold,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -666,11 +677,13 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveBtnText: {
+    fontFamily: typography.extraBold,
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   hintText: {
+    fontFamily: typography.regular,
     fontSize: 11,
     marginTop: 6,
     lineHeight: 15,

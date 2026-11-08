@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   TouchableWithoutFeedback,
+  Platform,
 } from 'react-native';
 import {
   Bell,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { AdherenceLog, Medication } from '../types';
+import { typography } from '../theme/typography';
 import hapticService from '../services/hapticService';
 
 export interface NotificationItem {
@@ -41,6 +43,55 @@ interface NotificationsModalProps {
   onTakeDose?: (log: AdherenceLog, med: Medication) => void;
   onClearAll?: () => void;
 }
+
+/**
+ * Defensive formatter ensuring that even if raw ISO timestamps (e.g. 2026-11-08T17:28:00.000Z)
+ * reach the UI, they render as clean, human-friendly medical timestamps.
+ */
+const formatDisplayTimestamp = (raw: string): string => {
+  if (!raw) return 'Today';
+  if (raw === 'Active' || raw === 'Daily' || raw === 'Today' || raw === 'Due') return raw;
+
+  // If already formatted like "Today, 5:28 PM" or "5:28 PM"
+  if (raw.includes('AM') || raw.includes('PM')) {
+    return raw;
+  }
+
+  // 24h format HH:mm e.g. "17:28"
+  if (/^\d{1,2}:\d{2}$/.test(raw)) {
+    const [h, m] = raw.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 || 12;
+    return `${displayH}:${m.toString().padStart(2, '0')} ${period}`;
+  }
+
+  // Check if ISO string or parseable date
+  const parsed = new Date(raw);
+  if (!isNaN(parsed.getTime())) {
+    const now = new Date();
+    const isToday = parsed.toDateString() === now.toDateString();
+    const hours = parsed.getHours();
+    const minutes = parsed.getMinutes();
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayH = hours % 12 || 12;
+    const timeStr = `${displayH}:${minutes.toString().padStart(2, '0')} ${period}`;
+
+    if (isToday) {
+      return `Today, ${timeStr}`;
+    }
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (parsed.toDateString() === yesterday.toDateString()) {
+      return `Yesterday, ${timeStr}`;
+    }
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[parsed.getMonth()]} ${parsed.getDate()}, ${timeStr}`;
+  }
+
+  return raw;
+};
 
 export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   visible,
@@ -128,11 +179,13 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Notification Items List */}
+              {/* Notification Items List - Fully Scrollable */}
               <ScrollView
                 style={styles.scrollArea}
                 contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
+                bounces={true}
+                nestedScrollEnabled={true}
               >
                 {notifications.length === 0 ? (
                   <View style={styles.emptyState}>
@@ -155,6 +208,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   notifications.map((item) => {
                     const isUrgent = item.type === 'urgent';
                     const isStreak = item.type === 'streak';
+                    const formattedTime = formatDisplayTimestamp(item.timestamp);
 
                     return (
                       <View
@@ -196,7 +250,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                             </Text>
                           </View>
                           <Text style={[styles.alertTime, { color: theme.textSubtle }]}>
-                            {item.timestamp}
+                            {formattedTime}
                           </Text>
                         </View>
 
@@ -260,23 +314,26 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    justifyContent: 'flex-start',
+    backgroundColor: 'rgba(0, 0, 0, 0.68)',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 80,
+    paddingTop: Platform.OS === 'ios' ? 54 : 40,
+    paddingBottom: 30,
     paddingHorizontal: 16,
   },
   modalCard: {
     width: '100%',
-    maxHeight: '80%',
-    borderRadius: 20,
+    maxHeight: '84%',
+    display: 'flex',
+    flexDirection: 'column',
+    borderRadius: 22,
     borderWidth: 1.5,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowRadius: 20,
+    elevation: 12,
   },
   headerRow: {
     flexDirection: 'row',
@@ -299,10 +356,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
+    fontFamily: typography.bold,
     fontSize: 16,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   headerSubtitle: {
+    fontFamily: typography.medium,
     fontSize: 12,
     fontWeight: '500',
     marginTop: 1,
@@ -315,11 +375,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrollArea: {
-    maxHeight: 400,
+    flexGrow: 1,
+    flexShrink: 1,
   },
   scrollContent: {
     padding: 16,
     gap: 12,
+    paddingBottom: 24,
   },
   emptyState: {
     alignItems: 'center',
@@ -336,11 +398,13 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   emptyTitle: {
+    fontFamily: typography.bold,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 6,
   },
   emptyText: {
+    fontFamily: typography.regular,
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
@@ -360,16 +424,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flex: 1,
+    paddingRight: 8,
   },
   alertTitle: {
+    fontFamily: typography.bold,
     fontSize: 13,
     fontWeight: '700',
+    flexShrink: 1,
   },
   alertTime: {
+    fontFamily: typography.medium,
     fontSize: 11,
     fontWeight: '500',
   },
   alertMessage: {
+    fontFamily: typography.regular,
     fontSize: 12,
     lineHeight: 17,
   },
@@ -385,6 +455,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   actionBtnText: {
+    fontFamily: typography.bold,
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
@@ -400,8 +471,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   clearBtnText: {
+    fontFamily: typography.semiBold,
     fontSize: 12,
     fontWeight: '600',
   },
 });
-

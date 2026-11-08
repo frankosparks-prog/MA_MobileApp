@@ -89,7 +89,7 @@ export const GardenView: React.FC<GardenViewProps> = ({
 
       {/* Botanical Plant Canvas */}
       <Animated.View style={[styles.plantCanvas, animatedPlantStyle]}>
-        <PlantIllustration size={170} />
+        <PlantIllustration size={170} progress={effectiveGrowth} />
 
         {/* Floating Thirst Indicator if overdue */}
         {isWilted && (

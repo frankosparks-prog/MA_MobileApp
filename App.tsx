@@ -21,6 +21,7 @@ import { ReminderOverlayModal } from './src/modals/ReminderOverlayModal';
 import { CaregiverEscalationModal } from './src/modals/CaregiverEscalationModal';
 import { AddMedicationModal } from './src/modals/AddMedicationModal';
 import { NotificationsModal, NotificationItem } from './src/modals/NotificationsModal';
+import { HeadlessAudioPlayer } from './src/components/HeadlessAudioPlayer';
 import { TopNavBar } from './src/components/TopNavBar';
 import { CurvedBottomBar, Tab } from './src/components/CurvedBottomBar';
 import { Toast, ToastMessage } from './src/components/Toast';
@@ -77,6 +78,47 @@ function MainApp() {
   useEffect(() => {
     if (!currentUser) return;
 
+    const formatNotificationTime = (timeStr?: string): { titleTime: string; stampTime: string } => {
+      if (!timeStr) return { titleTime: 'Due', stampTime: 'Today' };
+
+      // Case 1: HH:mm format (e.g. "08:00" or "20:30")
+      if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+        const [h, m] = timeStr.split(':').map(Number);
+        const period = h >= 12 ? 'PM' : 'AM';
+        const displayH = h % 12 || 12;
+        const formatted = `${displayH}:${m.toString().padStart(2, '0')} ${period}`;
+        return { titleTime: formatted, stampTime: formatted };
+      }
+
+      // Case 2: Full ISO string or date
+      const d = new Date(timeStr);
+      if (isNaN(d.getTime())) {
+        return { titleTime: timeStr, stampTime: timeStr };
+      }
+
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      const hours = d.getHours();
+      const minutes = d.getMinutes();
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const displayH = hours % 12 || 12;
+      const timePart = `${displayH}:${minutes.toString().padStart(2, '0')} ${period}`;
+
+      if (isToday) {
+        return { titleTime: timePart, stampTime: `Today, ${timePart}` };
+      }
+
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (d.toDateString() === yesterday.toDateString()) {
+        return { titleTime: timePart, stampTime: `Yesterday, ${timePart}` };
+      }
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const datePart = `${monthNames[d.getMonth()]} ${d.getDate()}`;
+      return { titleTime: timePart, stampTime: `${datePart}, ${timePart}` };
+    };
+
     const loadNotifications = async () => {
       try {
         const [logsRes, alertsRes] = await Promise.all([
@@ -92,18 +134,20 @@ function MainApp() {
             (l) => l.status === 'Escalated' || l.status === 'Missed'
           );
 
-          activeLogs.slice(0, 6).forEach((log) => {
+          activeLogs.slice(0, 10).forEach((log) => {
             const med = typeof log.medId === 'object' ? (log.medId as Medication) : null;
             const medName = med?.drugName || 'Scheduled Prescription';
             const isEscalated = log.status === 'Escalated';
+            const { titleTime, stampTime } = formatNotificationTime(log.scheduledTime);
+
             items.push({
               id: log._id,
               type: isEscalated ? 'urgent' : 'reminder',
-              title: `${medName} • ${log.scheduledTime || 'Due'}`,
+              title: `${medName} • ${titleTime}`,
               message: isEscalated
                 ? `Safety Net Level ${log.escalationLevel || 1}: Window overdue. Please confirm intake.`
                 : `Dose intake scheduled for today. Confirm to nourish your plant sanctuary.`,
-              timestamp: log.scheduledTime || 'Today',
+              timestamp: stampTime,
               actionLabel: 'Take Dose',
               log,
               medication: med || undefined,
@@ -334,6 +378,9 @@ function MainApp() {
           showToast('info', 'All notifications cleared.');
         }}
       />
+
+      {/* Invisible Zero-Dependency Mobile Audio Synthesizer */}
+      <HeadlessAudioPlayer />
     </View>
   );
 }
