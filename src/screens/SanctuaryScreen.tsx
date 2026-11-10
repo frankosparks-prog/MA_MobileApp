@@ -156,38 +156,6 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
   // User requirement: ONLY log the previous 3 instead of everything
   const displayedTakenLogs = showAllTaken ? takenLogs : takenLogs.slice(0, 3);
 
-  // Cardiac pulse animation for SAFETY NET ARMED indicator
-  const safetyNetPulseAnim = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(safetyNetPulseAnim, {
-          toValue: 1.35,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.timing(safetyNetPulseAnim, {
-          toValue: 0.9,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(safetyNetPulseAnim, {
-          toValue: 1.2,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(safetyNetPulseAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.delay(400),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [safetyNetPulseAnim]);
-
   // Robust parser for scheduled time strings (ISO timestamps, Date strings, or HH:mm)
   const parseScheduledDate = (timeStr?: string): Date => {
     if (!timeStr) return new Date();
@@ -384,27 +352,8 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
                 <ShieldCheck size={16} color={theme.primaryLight} strokeWidth={2.4} />
               </View>
               <Text style={[styles.brandBadgeTitle, { color: isDark ? theme.primaryLight : '#0369A1' }]}>
-                MediAlert Sanctuary
+                MediAlert
               </Text>
-            </View>
-
-            {/* Armed Safety Net Pill with Synchronized Cardiac Heartbeat Pulse */}
-            <View
-              style={[
-                styles.safetyNetPill,
-                {
-                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : '#FEE2E2',
-                  borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : '#FECACA',
-                },
-              ]}
-            >
-              <Animated.View
-                style={[
-                  styles.safetyNetPulsingDot,
-                  { transform: [{ scale: safetyNetPulseAnim }] },
-                ]}
-              />
-              <Text style={styles.safetyNetPillText}>SAFETY NET ARMED</Text>
             </View>
           </View>
 
@@ -420,7 +369,7 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
                 Welcome back, {user.username || 'Alex'}
               </Text>
               <Text style={[styles.welcomeSubtitle, { color: theme.textSecondary }]}>
-                Continuous adherence protection is synced with clinic.
+                Your daily prescription schedule is up to date.
               </Text>
             </View>
 
@@ -436,7 +385,7 @@ export const SanctuaryScreen: React.FC<SanctuaryScreenProps> = ({
                   },
                 ]}
               />
-              <SuccessfulTargetIllustration size={102} />
+              <SuccessfulTargetIllustration size={132} />
             </View>
           </View>
 
@@ -1176,17 +1125,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   targetIllustrationWrap: {
-    width: 102,
-    height: 102,
+    width: 132,
+    height: 132,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
   targetAmbientAura: {
     position: 'absolute',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 124,
+    height: 124,
+    borderRadius: 62,
   },
 
   /* 3 Metric Badges Row */

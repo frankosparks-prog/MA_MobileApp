@@ -8,20 +8,25 @@ import {
   RefreshControl,
   TextInput,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import {
   Users,
   AlertTriangle,
-  CheckCircle,
+  CheckCircle2,
   Phone,
   UserPlus,
   ShieldCheck,
   BellRing,
+  HeartHandshake,
+  MessageSquare,
+  Shield,
 } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { CaregiverAlert, User } from '../types';
 import { adherenceApi, authApi } from '../api';
 import { typography } from '../theme/typography';
+import hapticService from '../services/hapticService';
 
 interface CaregiverHubScreenProps {
   user: User;
@@ -59,12 +64,14 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
   }, []);
 
   const onRefresh = async () => {
+    hapticService.selection();
     setRefreshing(true);
     await fetchAlertsAndProfile();
     setRefreshing(false);
   };
 
   const handleAcknowledge = async (alertId: string) => {
+    hapticService.triggerNourishSuccess();
     try {
       await adherenceApi.acknowledgeAlert(alertId);
       showToast('success', 'Alert acknowledged! Fallback SMS cancelled.');
@@ -75,6 +82,7 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
   };
 
   const handleLinkByPhone = async () => {
+    hapticService.selection();
     const cleanPhone = phoneInput.trim();
     if (!cleanPhone) {
       showToast('error', 'Please enter a valid phone number or username.');
@@ -87,6 +95,7 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
       if (res.data?.user) {
         setUserProfile(res.data.user);
       }
+      hapticService.triggerNourishSuccess();
       showToast('success', `Linked contact with ${cleanPhone}!`);
       setPhoneInput('');
       await fetchAlertsAndProfile();
@@ -94,6 +103,15 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
       showToast('error', e.message || 'Could not link caregiver/contact.');
     } finally {
       setIsLinking(false);
+    }
+  };
+
+  const handleCall = (phoneNum: string) => {
+    hapticService.selection();
+    if (phoneNum) {
+      Linking.openURL(`tel:${phoneNum}`).catch(() => {
+        showToast('error', 'Unable to initiate call.');
+      });
     }
   };
 
@@ -113,50 +131,62 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
           />
         }
       >
-        {/* Cyber-Medical Safety Net Hero Section */}
+        {/* ============================================================== */}
+        {/* HERO SECTION: Circle of Care Overview */}
+        {/* ============================================================== */}
         <View
           style={[
             styles.heroCard,
             {
               backgroundColor: theme.bgCard,
-              borderColor: isDark ? 'rgba(0, 123, 167, 0.35)' : theme.border,
+              borderColor: isDark ? 'rgba(0, 123, 167, 0.32)' : '#BAE6FD',
               shadowColor: theme.primary,
             },
           ]}
         >
-          <View style={styles.heroTopRow}>
+          {/* Top Network Protocol Tag */}
+          <View style={styles.heroTopProtocolRow}>
+            <View style={styles.protocolTitleRow}>
+              <View
+                style={[
+                  styles.protocolIconCircle,
+                  {
+                    backgroundColor: isDark
+                      ? 'rgba(0, 123, 167, 0.2)'
+                      : theme.primaryContainer,
+                  },
+                ]}
+              >
+                <HeartHandshake size={15} color={theme.primaryLight} strokeWidth={2.4} />
+              </View>
+              <Text style={[styles.protocolLabel, { color: theme.textPrimary }]}>
+                Caregiver Safety Circle
+              </Text>
+            </View>
+
             <View
               style={[
-                styles.heroShieldBadge,
+                styles.safetyPillBadge,
                 {
-                  backgroundColor: isDark ? '#111827' : theme.primaryContainer,
-                  borderColor: theme.primaryLight,
+                  backgroundColor: isDark
+                    ? 'rgba(16, 185, 129, 0.12)'
+                    : '#ECFDF5',
+                  borderColor: isDark
+                    ? 'rgba(16, 185, 129, 0.28)'
+                    : '#A7F3D0',
                 },
               ]}
             >
-              <ShieldCheck size={26} color={theme.primaryLight} />
-              <View style={[styles.heroAlertPulse, { backgroundColor: theme.alert }]} />
+              <View style={[styles.safetyPillDot, { backgroundColor: '#10B981' }]} />
+              <Text style={[styles.safetyPillText, { color: '#059669' }]}>
+                SMS Active
+              </Text>
             </View>
-            <View style={styles.heroTextCol}>
-              <View style={styles.heroTagRow}>
-                <Text style={[styles.heroTagText, { color: theme.primaryLight }]}>
-                  SAFETY NET GUARD
-                </Text>
-                <View
-                  style={[
-                    styles.heroStatusChip,
-                    {
-                      backgroundColor: theme.alertContainer,
-                      borderColor: theme.alertBorder,
-                    },
-                  ]}
-                >
-                  <View style={[styles.heroRedDot, { backgroundColor: theme.alert }]} />
-                  <Text style={[styles.heroStatusChipText, { color: theme.alertLight }]}>
-                    ARMED
-                  </Text>
-                </View>
-              </View>
+          </View>
+
+          {/* Hero Greeting & Icon Header */}
+          <View style={styles.heroHeaderRow}>
+            <View style={styles.heroTextColumn}>
               <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
                 Circle of Care
               </Text>
@@ -164,107 +194,160 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
                 Automated multi-tier notification & SMS fallback safety net
               </Text>
             </View>
+
+            <View
+              style={[
+                styles.heroAvatarBadge,
+                {
+                  backgroundColor: isDark
+                    ? 'rgba(0, 123, 167, 0.18)'
+                    : theme.primaryContainer,
+                  borderColor: isDark
+                    ? 'rgba(56, 189, 248, 0.3)'
+                    : '#BAE6FD',
+                },
+              ]}
+            >
+              <Users size={26} color={theme.primaryLight} strokeWidth={2.2} />
+            </View>
           </View>
 
-          {/* Quick Security Metrics */}
-          <View
-            style={[
-              styles.heroStatsRow,
-              {
-                backgroundColor: isDark ? '#090D14' : '#F8FAFC',
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#E2E8F0',
-              },
-            ]}
-          >
-            <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatVal, { color: theme.textPrimary }]}>
+          {/* 3 Metric Clinical Telemetry Badges */}
+          <View style={styles.metricsRow}>
+            {/* 1. Connected Contacts */}
+            <View
+              style={[
+                styles.metricCard,
+                {
+                  backgroundColor: isDark ? '#101E2E' : '#F0F9FF',
+                  borderColor: isDark ? 'rgba(56, 189, 248, 0.22)' : '#E0F2FE',
+                },
+              ]}
+            >
+              <Text style={[styles.metricValue, { color: isDark ? '#38BDF8' : '#0369A1' }]}>
                 {associatedList.length}
               </Text>
-              <Text style={[styles.heroStatLabel, { color: theme.textSecondary }]}>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
                 Contacts
               </Text>
             </View>
+
+            {/* 2. SMS Fallback Mode */}
             <View
               style={[
-                styles.heroStatDivider,
-                { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0' },
+                styles.metricCard,
+                {
+                  backgroundColor: isDark ? '#0C221A' : '#ECFDF5',
+                  borderColor: isDark ? 'rgba(16, 185, 129, 0.22)' : '#D1FAE5',
+                },
               ]}
-            />
-            <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatVal, { color: theme.primaryLight }]}>
+            >
+              <Text style={[styles.metricValue, { color: '#10B981' }]}>
                 SMS Ready
               </Text>
-              <Text style={[styles.heroStatLabel, { color: theme.textSecondary }]}>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
                 Fallback Mode
               </Text>
             </View>
+
+            {/* 3. Auto-Escalation Tiers */}
             <View
               style={[
-                styles.heroStatDivider,
-                { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0' },
+                styles.metricCard,
+                {
+                  backgroundColor: isDark ? '#1F1710' : '#FFFBEB',
+                  borderColor: isDark ? 'rgba(245, 158, 11, 0.22)' : '#FEF3C7',
+                },
               ]}
-            />
-            <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatVal, { color: theme.alertLight }]}>
+            >
+              <Text style={[styles.metricValue, { color: isDark ? '#FBBF24' : '#D97706' }]}>
                 3 Tiers
               </Text>
-              <Text style={[styles.heroStatLabel, { color: theme.textSecondary }]}>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
                 Auto-Escalation
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Link via Phone Number Box */}
+        {/* ============================================================== */}
+        {/* LINK VIA PHONE NUMBER CARD */}
+        {/* ============================================================== */}
         <View
           style={[
             styles.linkCard,
             {
               backgroundColor: theme.bgCard,
-              borderColor: isDark ? 'rgba(0, 123, 167, 0.28)' : theme.border,
+              borderColor: isDark ? 'rgba(0, 123, 167, 0.25)' : theme.border,
+              shadowColor: theme.primary,
             },
           ]}
         >
           <View style={styles.linkHeader}>
-            <Phone size={18} color={theme.primaryLight} />
+            <View
+              style={[
+                styles.linkIconCircle,
+                {
+                  backgroundColor: isDark
+                    ? 'rgba(0, 123, 167, 0.18)'
+                    : theme.primaryContainer,
+                },
+              ]}
+            >
+              <Phone size={16} color={theme.primaryLight} strokeWidth={2.4} />
+            </View>
             <Text style={[styles.linkTitle, { color: theme.textPrimary }]}>
               Connect via Mobile Phone Number
             </Text>
           </View>
-          <Text style={[styles.linkSubtext, { color: theme.textMuted }]}>
+          <Text style={[styles.linkSubtext, { color: theme.textSecondary }]}>
             Enter your caregiver or patient's registered phone number (e.g. +254... or 07...).
           </Text>
 
           <View style={styles.linkRow}>
-            <TextInput
+            <View
               style={[
-                styles.linkInput,
+                styles.inputWrapper,
                 {
-                  backgroundColor: isDark ? '#0A0D14' : '#F8FAFC',
-                  borderColor: isDark ? '#242D3A' : '#CBD5E1',
-                  color: theme.textPrimary,
+                  backgroundColor: isDark ? '#090E17' : '#F8FAFC',
+                  borderColor: isDark ? 'rgba(56, 189, 248, 0.25)' : '#CBD5E1',
                 },
               ]}
-              placeholder="+254712345678 or username"
-              placeholderTextColor={theme.textMuted}
-              value={phoneInput}
-              onChangeText={setPhoneInput}
-              autoCapitalize="none"
-            />
+            >
+              <Phone size={15} color={theme.textSubtle} style={{ marginRight: 8 }} />
+              <TextInput
+                style={[
+                  styles.linkInput,
+                  {
+                    color: theme.textPrimary,
+                  },
+                ]}
+                placeholder="+254712345678 or username"
+                placeholderTextColor={theme.textSubtle}
+                value={phoneInput}
+                onChangeText={setPhoneInput}
+                autoCapitalize="none"
+              />
+            </View>
+
             <TouchableOpacity
               style={[
                 styles.linkBtn,
-                { backgroundColor: theme.primary },
+                {
+                  backgroundColor: theme.primary,
+                  shadowColor: theme.primary,
+                },
                 isLinking && styles.linkBtnDisabled,
               ]}
               onPress={handleLinkByPhone}
               disabled={isLinking}
+              activeOpacity={0.8}
             >
               {isLinking ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <>
-                  <UserPlus size={16} color="#FFFFFF" />
+                  <UserPlus size={15} color="#FFFFFF" strokeWidth={2.4} />
                   <Text style={styles.linkBtnText}>Connect</Text>
                 </>
               )}
@@ -272,11 +355,33 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
           </View>
         </View>
 
-        {/* Connected Members Section */}
+        {/* ============================================================== */}
+        {/* CONNECTED CONTACTS SECTION */}
+        {/* ============================================================== */}
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-            Connected Contacts ({associatedList.length})
-          </Text>
+          <View style={styles.sectionTitleGroup}>
+            <Users size={18} color={theme.primaryLight} strokeWidth={2.4} />
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              Connected Contacts
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.countPillBadge,
+              {
+                backgroundColor: isDark
+                  ? 'rgba(0, 123, 167, 0.18)'
+                  : theme.primaryContainer,
+                borderColor: isDark
+                  ? 'rgba(56, 189, 248, 0.3)'
+                  : '#BAE6FD',
+              },
+            ]}
+          >
+            <Text style={[styles.countPillText, { color: theme.primaryLight }]}>
+              {associatedList.length} Connected
+            </Text>
+          </View>
         </View>
 
         {associatedList.length === 0 ? (
@@ -285,12 +390,16 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
               styles.emptyContactsCard,
               {
                 backgroundColor: theme.bgCard,
-                borderColor: isDark ? '#1D2533' : theme.border,
+                borderColor: isDark ? 'rgba(0, 123, 167, 0.2)' : theme.border,
               },
             ]}
           >
-            <Text style={[styles.emptyContactsText, { color: theme.textMuted }]}>
-              No contacts connected yet. Enter their phone number above to create your safety circle.
+            <Users size={32} color={theme.textSubtle} style={{ marginBottom: 6 }} />
+            <Text style={[styles.emptyContactsTitle, { color: theme.textPrimary }]}>
+              No Contacts Linked Yet
+            </Text>
+            <Text style={[styles.emptyContactsText, { color: theme.textSecondary }]}>
+              Enter a registered phone number above to connect your caregiver or dependent to this safety net.
             </Text>
           </View>
         ) : (
@@ -300,6 +409,17 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
               const phone =
                 typeof contact === 'object' ? contact.phoneNumber || contact.contactInfo : '';
               const contactRole = typeof contact === 'object' ? contact.role : 'Contact';
+              const isCaregiver = contactRole.toLowerCase().includes('caregiver');
+
+              // Initials
+              const initials = name
+                ? name
+                    .split(/[\s_]+/)
+                    .map((n: string) => n[0])
+                    .join('')
+                    .toUpperCase()
+                    .slice(0, 2)
+                : 'U';
 
               return (
                 <View
@@ -308,42 +428,99 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
                     styles.contactItem,
                     {
                       backgroundColor: theme.bgCard,
-                      borderColor: isDark ? 'rgba(0, 123, 167, 0.2)' : theme.border,
+                      borderColor: isDark ? 'rgba(0, 123, 167, 0.22)' : theme.border,
+                      shadowColor: theme.primary,
                     },
                   ]}
                 >
+                  {/* Left Medical Accent Stripe */}
+                  <View
+                    style={[
+                      styles.cardLeftStripe,
+                      {
+                        backgroundColor: isCaregiver ? '#10B981' : (isDark ? '#007BA7' : '#0284C7'),
+                      },
+                    ]}
+                  />
+
+                  {/* Avatar Circle with Initials */}
                   <View
                     style={[
                       styles.contactAvatar,
-                      { backgroundColor: theme.primaryContainer },
-                    ]}
-                  >
-                    <Users size={16} color={theme.primaryLight} />
-                  </View>
-                  <View style={styles.contactInfo}>
-                    <Text style={[styles.contactName, { color: theme.textPrimary }]}>
-                      {name}
-                    </Text>
-                    <Text style={[styles.contactPhone, { color: theme.primaryLight }]}>
-                      {phone || 'No phone recorded'}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.contactBadge,
                       {
-                        backgroundColor: isDark ? '#192230' : theme.primaryContainer,
+                        backgroundColor: isCaregiver
+                          ? (isDark ? '#064E3B' : '#D1FAE5')
+                          : (isDark ? 'rgba(0, 123, 167, 0.22)' : theme.primaryContainer),
+                        borderColor: isCaregiver
+                          ? '#10B981'
+                          : (isDark ? 'rgba(56, 189, 248, 0.35)' : '#BAE6FD'),
                       },
                     ]}
                   >
                     <Text
                       style={[
-                        styles.contactBadgeText,
-                        { color: isDark ? theme.textSecondary : theme.primary },
+                        styles.avatarInitials,
+                        { color: isCaregiver ? '#10B981' : theme.primaryLight },
                       ]}
                     >
-                      {contactRole}
+                      {initials}
                     </Text>
+                  </View>
+
+                  {/* Contact Info Column */}
+                  <View style={styles.contactInfo}>
+                    <Text style={[styles.contactName, { color: theme.textPrimary }]}>
+                      {name}
+                    </Text>
+                    <View style={styles.phoneRow}>
+                      <Phone size={12} color={theme.textSecondary} />
+                      <Text style={[styles.contactPhone, { color: theme.textSecondary }]}>
+                        {phone || 'No phone recorded'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Role Badge & Call Shortcut */}
+                  <View style={styles.contactActionsCol}>
+                    <View
+                      style={[
+                        styles.contactBadge,
+                        {
+                          backgroundColor: isCaregiver
+                            ? (isDark ? '#06281E' : '#ECFDF5')
+                            : (isDark ? '#102235' : '#F0F9FF'),
+                          borderColor: isCaregiver
+                            ? 'rgba(16, 185, 129, 0.3)'
+                            : (isDark ? 'rgba(56, 189, 248, 0.3)' : '#BAE6FD'),
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.contactBadgeText,
+                          { color: isCaregiver ? '#10B981' : theme.primaryLight },
+                        ]}
+                      >
+                        {contactRole || 'Dependant'}
+                      </Text>
+                    </View>
+
+                    {phone ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.callMiniBtn,
+                          {
+                            backgroundColor: isDark
+                              ? 'rgba(0, 123, 167, 0.18)'
+                              : theme.primaryContainer,
+                          },
+                        ]}
+                        onPress={() => handleCall(phone)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Phone size={13} color={theme.primaryLight} />
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </View>
               );
@@ -351,25 +528,38 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
           </View>
         )}
 
-        {/* Escalation Alerts Section */}
-        <View style={[styles.sectionHeader, { marginTop: 26 }]}>
-          <View style={styles.alertsTitleRow}>
-            <BellRing size={18} color={theme.alert} />
+        {/* ============================================================== */}
+        {/* ACTIVE ESCALATION ALERTS SECTION */}
+        {/* ============================================================== */}
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+          <View style={styles.sectionTitleGroup}>
+            <BellRing size={18} color={alerts.length > 0 ? '#EF4444' : theme.emerald} strokeWidth={2.4} />
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
               Active Escalation Alerts
             </Text>
           </View>
-          <Text
+          <View
             style={[
-              styles.alertCountBadge,
+              styles.countPillBadge,
               {
-                backgroundColor: theme.alertContainer,
-                color: theme.alert,
+                backgroundColor: alerts.length > 0
+                  ? (isDark ? 'rgba(239, 68, 68, 0.14)' : '#FEE2E2')
+                  : (isDark ? 'rgba(16, 185, 129, 0.14)' : '#ECFDF5'),
+                borderColor: alerts.length > 0
+                  ? (isDark ? 'rgba(239, 68, 68, 0.32)' : '#FECACA')
+                  : (isDark ? 'rgba(16, 185, 129, 0.28)' : '#A7F3D0'),
               },
             ]}
           >
-            {alerts.length}
-          </Text>
+            <Text
+              style={[
+                styles.countPillText,
+                { color: alerts.length > 0 ? '#EF4444' : '#10B981' },
+              ]}
+            >
+              {alerts.length} Active
+            </Text>
+          </View>
         </View>
 
         {alerts.length === 0 ? (
@@ -379,18 +569,26 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
               {
                 backgroundColor: theme.bgCard,
                 borderColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#BBF7D0',
+                shadowColor: '#10B981',
               },
             ]}
           >
-            <CheckCircle
-              size={28}
-              color={theme.emerald}
-              style={{ marginBottom: 6 }}
-            />
+            <View
+              style={[
+                styles.healthyIconCircle,
+                {
+                  backgroundColor: isDark
+                    ? 'rgba(16, 185, 129, 0.15)'
+                    : '#DCFCE7',
+                },
+              ]}
+            >
+              <CheckCircle2 size={24} color="#10B981" strokeWidth={2.3} />
+            </View>
             <Text style={[styles.healthyStateTitle, { color: theme.textPrimary }]}>
               All Prescriptions on Track
             </Text>
-            <Text style={[styles.healthyStateSubtext, { color: theme.textMuted }]}>
+            <Text style={[styles.healthyStateSubtext, { color: theme.textSecondary }]}>
               No missed doses or urgent escalations pending for your connected circle.
             </Text>
           </View>
@@ -405,77 +603,95 @@ export const CaregiverHubScreen: React.FC<CaregiverHubScreenProps> = ({ user, sh
                 style={[
                   styles.alertCard,
                   {
-                    backgroundColor: isDark ? '#141822' : theme.bgCard,
+                    backgroundColor: theme.bgCard,
                     borderColor: isAcknowledged
                       ? theme.border
-                      : theme.alert,
-                  },
-                  !isAcknowledged && {
-                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : '#FEF2F2',
+                      : (isDark ? 'rgba(239, 68, 68, 0.4)' : '#FECACA'),
+                    shadowColor: '#EF4444',
                   },
                 ]}
               >
-                <View style={styles.alertTop}>
-                  <View style={styles.patientInfo}>
-                    <AlertTriangle
-                      size={20}
-                      color={isAcknowledged ? theme.emerald : theme.alert}
-                    />
-                    <View>
-                      <Text style={[styles.patientName, { color: theme.textPrimary }]}>
-                        {patientName}
-                      </Text>
-                      <Text style={[styles.alertStatusText, { color: theme.alertLight }]}>
-                        Status: {alert.status}
-                      </Text>
+                {/* Left Alert Accent Stripe */}
+                <View
+                  style={[
+                    styles.cardLeftStripe,
+                    {
+                      backgroundColor: isAcknowledged ? '#10B981' : '#EF4444',
+                    },
+                  ]}
+                />
+
+                <View style={styles.alertContent}>
+                  <View style={styles.alertTop}>
+                    <View style={styles.patientInfo}>
+                      <AlertTriangle
+                        size={18}
+                        color={isAcknowledged ? theme.emerald : '#EF4444'}
+                        strokeWidth={2.3}
+                      />
+                      <View>
+                        <Text style={[styles.patientName, { color: theme.textPrimary }]}>
+                          {patientName}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.alertStatusText,
+                            { color: isAcknowledged ? theme.emerald : '#EF4444' },
+                          ]}
+                        >
+                          Status: {alert.status}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
 
-                  <View
-                    style={[
-                      styles.phoneTag,
-                      {
-                        backgroundColor: isDark ? '#192230' : theme.primaryContainer,
-                      },
-                    ]}
-                  >
-                    <Phone size={12} color={theme.primaryLight} />
-                    <Text style={[styles.phoneTagText, { color: theme.primaryLight }]}>
-                      {alert.recipientPhone}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={[styles.alertMsg, { color: theme.textSecondary }]}>
-                  {patientName} missed Level 3 reminder. Fallback SMS was prepared for {alert.recipientPhone}.
-                </Text>
-
-                <View style={styles.alertFooter}>
-                  {isAcknowledged ? (
                     <View
                       style={[
-                        styles.acknowledgedBadge,
+                        styles.phoneTag,
                         {
-                          backgroundColor: isDark
-                            ? 'rgba(16, 185, 129, 0.15)'
-                            : '#DCFCE7',
+                          backgroundColor: isDark ? '#192230' : theme.primaryContainer,
+                          borderColor: isDark ? 'rgba(56, 189, 248, 0.3)' : '#BAE6FD',
                         },
                       ]}
                     >
-                      <CheckCircle size={14} color={theme.emerald} />
-                      <Text style={[styles.acknowledgedText, { color: theme.emerald }]}>
-                        Acknowledged • SMS Cancelled
+                      <Phone size={12} color={theme.primaryLight} />
+                      <Text style={[styles.phoneTagText, { color: theme.primaryLight }]}>
+                        {alert.recipientPhone}
                       </Text>
                     </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.ackBtn, { backgroundColor: theme.alert }]}
-                      onPress={() => handleAcknowledge(alert._id)}
-                    >
-                      <ShieldCheck size={16} color="#FFFFFF" />
-                      <Text style={styles.ackBtnText}>Acknowledge & Cancel SMS</Text>
-                    </TouchableOpacity>
-                  )}
+                  </View>
+
+                  <Text style={[styles.alertMsg, { color: theme.textSecondary }]}>
+                    {patientName} missed confirmation window. Fallback SMS dispatched to {alert.recipientPhone}.
+                  </Text>
+
+                  <View style={styles.alertFooter}>
+                    {isAcknowledged ? (
+                      <View
+                        style={[
+                          styles.acknowledgedBadge,
+                          {
+                            backgroundColor: isDark
+                              ? 'rgba(16, 185, 129, 0.15)'
+                              : '#DCFCE7',
+                          },
+                        ]}
+                      >
+                        <CheckCircle2 size={14} color="#10B981" />
+                        <Text style={[styles.acknowledgedText, { color: '#059669' }]}>
+                          Acknowledged • SMS Fallback Closed
+                        </Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.ackBtn, { backgroundColor: '#EF4444' }]}
+                        onPress={() => handleAcknowledge(alert._id)}
+                        activeOpacity={0.8}
+                      >
+                        <ShieldCheck size={16} color="#FFFFFF" strokeWidth={2.3} />
+                        <Text style={styles.ackBtnText}>Acknowledge & Cancel SMS</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               </View>
             );
@@ -491,128 +707,148 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 40,
+    padding: 16,
+    paddingTop: 14,
+    paddingBottom: 48,
   },
+  // ==============================================================
+  // HERO CARD
+  // ==============================================================
   heroCard: {
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1.5,
     padding: 18,
-    marginBottom: 20,
+    marginBottom: 16,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.18,
     shadowRadius: 16,
-    elevation: 6,
+    elevation: 4,
   },
-  heroTopRow: {
+  heroTopProtocolRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-  heroShieldBadge: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  heroAlertPulse: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  heroTextCol: {
-    flex: 1,
-  },
-  heroTagRow: {
+  protocolTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 2,
   },
-  heroTagText: {
-    fontFamily: typography.extraBold,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.2,
+  protocolIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  heroStatusChip: {
+  protocolLabel: {
+    fontFamily: typography.bold,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  safetyPillBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
     borderWidth: 1,
   },
-  heroRedDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+  safetyPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  heroStatusChipText: {
+  safetyPillText: {
     fontFamily: typography.bold,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  heroHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  heroTextColumn: {
+    flex: 1,
+    paddingRight: 10,
   },
   heroTitle: {
     fontFamily: typography.extraBold,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
+    lineHeight: 28,
   },
   heroSubtitle: {
-    fontFamily: typography.medium,
+    fontFamily: typography.regular,
     fontSize: 12,
-    fontWeight: '500',
-    marginTop: 2,
+    marginTop: 4,
+    lineHeight: 17,
   },
-  heroStatsRow: {
-    flexDirection: 'row',
+  heroAvatarBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
     alignItems: 'center',
-    justifyContent: 'space-around',
-    borderRadius: 14,
-    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  metricCard: {
+    flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 8,
-    marginTop: 14,
-  },
-  heroStatItem: {
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'center',
   },
-  heroStatVal: {
+  metricValue: {
     fontFamily: typography.extraBold,
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '800',
+    marginBottom: 2,
   },
-  heroStatLabel: {
-    fontFamily: typography.semiBold,
+  metricLabel: {
+    fontFamily: typography.medium,
     fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  heroStatDivider: {
-    width: 1,
-    height: 24,
-  },
+  // ==============================================================
+  // LINK VIA PHONE CARD
+  // ==============================================================
   linkCard: {
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1.5,
     padding: 16,
     marginBottom: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
   },
   linkHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 4,
+  },
+  linkIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   linkTitle: {
     fontFamily: typography.bold,
@@ -622,27 +858,41 @@ const styles = StyleSheet.create({
   linkSubtext: {
     fontFamily: typography.regular,
     fontSize: 12,
+    lineHeight: 17,
     marginBottom: 12,
-    lineHeight: 16,
   },
   linkRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
+    alignItems: 'center',
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    height: 44,
   },
   linkInput: {
     flex: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontFamily: typography.regular,
+    fontFamily: typography.medium,
     fontSize: 13,
+    paddingVertical: 0,
   },
   linkBtn: {
-    borderRadius: 10,
+    height: 44,
+    borderRadius: 12,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 2,
   },
   linkBtnDisabled: {
     opacity: 0.6,
@@ -653,13 +903,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
+  // ==============================================================
+  // SECTION HEADERS
+  // ==============================================================
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
+    paddingHorizontal: 2,
   },
-  alertsTitleRow: {
+  sectionTitleGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -668,76 +922,145 @@ const styles = StyleSheet.create({
     fontFamily: typography.bold,
     fontSize: 16,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
-  alertCountBadge: {
-    fontFamily: typography.extraBold,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  emptyContactsCard: {
-    padding: 16,
+  countPillBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
     borderRadius: 12,
     borderWidth: 1,
+  },
+  countPillText: {
+    fontFamily: typography.bold,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  // ==============================================================
+  // EMPTY STATE
+  // ==============================================================
+  emptyContactsCard: {
+    padding: 22,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  emptyContactsTitle: {
+    fontFamily: typography.bold,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
   },
   emptyContactsText: {
     fontFamily: typography.regular,
     fontSize: 12,
-    lineHeight: 16,
+    textAlign: 'center',
+    lineHeight: 17,
   },
+  // ==============================================================
+  // CONTACTS LIST
+  // ==============================================================
   contactsGrid: {
-    gap: 8,
+    gap: 10,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 18,
+    padding: 14,
     gap: 12,
+    position: 'relative',
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardLeftStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
   },
   contactAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarInitials: {
+    fontFamily: typography.extraBold,
+    fontSize: 14,
+    fontWeight: '800',
   },
   contactInfo: {
     flex: 1,
   },
   contactName: {
     fontFamily: typography.bold,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
   },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 3,
+  },
   contactPhone: {
-    fontFamily: typography.regular,
+    fontFamily: typography.medium,
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: '500',
+  },
+  contactActionsCol: {
+    alignItems: 'flex-end',
+    gap: 6,
   },
   contactBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   contactBadgeText: {
-    fontFamily: typography.semiBold,
+    fontFamily: typography.bold,
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  healthyStateCard: {
-    borderRadius: 16,
-    borderWidth: 1.5,
-    padding: 24,
+  callMiniBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
-    marginTop: 4,
+    justifyContent: 'center',
+  },
+  // ==============================================================
+  // HEALTHY STATE / ALERTS
+  // ==============================================================
+  healthyStateCard: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    padding: 22,
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  healthyIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
   healthyStateTitle: {
     fontFamily: typography.bold,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -745,13 +1068,22 @@ const styles = StyleSheet.create({
     fontFamily: typography.regular,
     fontSize: 12,
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 17,
   },
   alertCard: {
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1.5,
-    padding: 16,
     marginBottom: 12,
+    position: 'relative',
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  alertContent: {
+    padding: 16,
+    paddingLeft: 18,
   },
   alertTop: {
     flexDirection: 'row',
@@ -779,13 +1111,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   phoneTagText: {
-    fontFamily: typography.semiBold,
+    fontFamily: typography.bold,
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   alertMsg: {
     fontFamily: typography.regular,
@@ -794,7 +1127,7 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   alertFooter: {
-    marginTop: 6,
+    marginTop: 4,
   },
   ackBtn: {
     flexDirection: 'row',
@@ -802,7 +1135,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   ackBtnText: {
     fontFamily: typography.bold,
